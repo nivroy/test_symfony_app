@@ -1,0 +1,36 @@
+<div class="card">
+    <h1>Confirma tu autenticación</h1>
+
+    {% for label, messages in app.flashes %}
+        {% for message in messages %}
+            <div class="flash {{ label }}">{{ message }}</div>
+        {% endfor %}
+    {% endfor %}
+
+    <p>
+        Hemos registrado tu solicitud, {{ name }}. Abre la siguiente dirección en una nueva pestaña para continuar
+        con la autenticación y obtener tu token temporal:
+    </p>
+
+    <p class="auth-url">
+        <a href="{{ authUrl }}" target="_blank" rel="noopener noreferrer">{{ authUrl }}</a>
+    </p>
+
+    <div class="hint">
+        Usa el código <strong>{{ code }}</strong> cuando el portal te lo solicite. Si cierras esta página, podrás volver
+        desde el inicio para intentarlo nuevamente sin perder tu progreso.
+    </div>
+
+    <form method="post" action="{{ path('app_auth_confirm') }}" class="auth-form">
+        <label for="token">Token recibido</label>
+        <input type="text" id="token" name="token" placeholder="Ingresa el token" required>
+
+        <div class="actions">
+            <button type="submit" class="btn primary">Confirmar token</button>
+        </div>
+    </form>
+
+    <form method="post" action="{{ path('app_auth_cancel') }}" class="auth-cancel">
+        <button type="submit" class="btn">Cancelar autenticación</button>
+    </form>
+</div>
