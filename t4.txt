@@ -1,0 +1,40 @@
+﻿{% extends 'base.html.twig' %}
+
+{% block title %}Inicio Â· Demo Symfony{% endblock %}
+
+{% block body %}
+    <div class="card">
+        <h1>Bienvenido a la demo de autenticaciÃ³n</h1>
+
+        <p>
+            Antes de acceder al contador, necesitamos validar tu identidad. Completa el siguiente formulario
+            y sigue las instrucciones para finalizar el proceso de autenticaciÃ³n.
+        </p>
+
+        <form method="post" action="{{ path('app_auth_start') }}" class="auth-form">
+            <label for="name">Nombre</label>
+            <input type="text" id="name" name="name" value="{{ name ?? '' }}" placeholder="Ingresa tu nombre" required>
+
+            <label for="code">CÃ³digo de acceso (6 dÃ­gitos)</label>
+            <input type="text" id="code" name="code" inputmode="numeric" pattern="\d{6}" maxlength="6" placeholder="000000" required>
+
+            <button type="submit" class="btn primary">Autenticarse</button>
+        </form>
+
+        <section class="help">
+            <h2>Â¿QuÃ© sucederÃ¡ despuÃ©s?</h2>
+            <ol>
+                <li>Te redireccionaremos al portal seguro: <strong>{{ authUrl }}</strong>.</li>
+                <li>AllÃ­ recibirÃ¡s un token temporal que deberÃ¡s copiar.</li>
+                <li>Vuelve a esta pÃ¡gina para ingresarlo y acceder al contador.</li>
+            </ol>
+        </section>
+
+        {% if hasToken %}
+            <div class="actions">
+                <a class="btn" href="{{ path('app_counter_index') }}">Ir al contador</a>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}
+

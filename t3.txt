@@ -1,0 +1,37 @@
+﻿{% extends 'base.html.twig' %}
+
+{% block title %}Confirmar autenticaciÃ³n Â· Demo Symfony{% endblock %}
+
+{% block body %}
+    <div class="card">
+        <h1>Confirma tu autenticaciÃ³n</h1>
+
+        <p>
+            Hemos registrado tu solicitud, {{ name }}. Abre la siguiente direcciÃ³n en una nueva pestaÃ±a para continuar
+            con la autenticaciÃ³n y obtener tu token temporal:
+        </p>
+
+        <p class="auth-url">
+            <a href="{{ authUrl }}" target="_blank" rel="noopener noreferrer">{{ authUrl }}</a>
+        </p>
+
+        <div class="hint">
+            Usa el cÃ³digo <strong>{{ code }}</strong> cuando el portal te lo solicite. Si cierras esta pÃ¡gina, podrÃ¡s volver
+            desde el inicio para intentarlo nuevamente sin perder tu progreso.
+        </div>
+
+        <form method="post" action="{{ path('app_auth_confirm') }}" class="auth-form">
+            <label for="token">Token recibido</label>
+            <input type="text" id="token" name="token" placeholder="Ingresa el token" required>
+
+            <div class="actions">
+                <button type="submit" class="btn primary">Confirmar token</button>
+            </div>
+        </form>
+
+        <form method="post" action="{{ path('app_auth_cancel') }}" class="auth-cancel">
+            <button type="submit" class="btn">Cancelar autenticaciÃ³n</button>
+        </form>
+    </div>
+{% endblock %}
+

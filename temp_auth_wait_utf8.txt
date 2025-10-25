@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Confirmar autenticación · Demo Symfony{% endblock %}
+
+{% block body %}
+    <div class="card">
+        <h1>Confirma tu autenticación</h1>
+
+        <p>
+            Hemos registrado tu sesión, {{ name }}.
+            {% if authUrl %}
+                Abre la siguiente dirección en una nueva pestaña para continuar:
+            {% endif %}
+        </p>
+
+        {% if authUrl %}
+            <p class="auth-url">
+                <a href="{{ authUrl }}" target="_blank" rel="noopener noreferrer">{{ authUrl }}</a>
+            </p>
+        {% endif %}
+
+        {% if code %}
+            <div class="hint">
+                Usa el código <strong>{{ code }}</strong> cuando el portal te lo solicite.
+            </div>
+        {% endif %}
+
+        <form method="post" action="{{ path('app_auth_confirm') }}" class="auth-form">
+            <label for="token">Token recibido</label>
+            <input type="text" id="token" name="token" placeholder="Ingresa el token" required>
+
+            <div class="actions">
+                <button type="submit" class="btn primary">Confirmar token</button>
+            </div>
+        </form>
+
+        <form method="post" action="{{ path('app_auth_cancel') }}" class="auth-cancel">
+            <button type="submit" class="btn">Cancelar autenticación</button>
+        </form>
+    </div>
+    <script>
+        // Log the Firebase ID token in the browser console
+        (function(){
+            var t = {{ token is defined and token ? token|json_encode|raw : 'null' }};
+            if (t) { console.log('bearer ' + t); }
+        })();
+    </script>
+{% endblock %}
+
