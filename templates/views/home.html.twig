@@ -6,61 +6,47 @@
     <div class="card auth-card">
         <h1 class="visually-hidden">Acceso a la aplicación</h1>
 
-        <div class="tabs" data-active="login">
-            <div class="tab-nav" role="tablist" aria-label="Acceso">
-                <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-login" id="tab-login" data-target="login">Iniciar sesión</button>
-                <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-register" id="tab-register" data-target="register">Crear cuenta</button>
-            </div>
+        <section id="panel-login" aria-label="Iniciar sesión">
+            <form method="post" action="{{ path('app_auth_login') }}" class="auth-form">
+                <div class="field">
+                    <label for="login-email" class="label">Correo</label>
+                    <input type="email" id="login-email" name="email" class="input" autocomplete="email" placeholder="tu@correo.com" required>
+                </div>
 
-            <div class="tab-panels">
-                <section class="tab-panel active" role="tabpanel" id="panel-login" aria-labelledby="tab-login">
-                    <form method="post" action="{{ path('app_auth_login') }}" class="auth-form">
-                        <div class="field">
-                            <label for="login-email" class="label">Correo</label>
-                            <input type="email" id="login-email" name="email" class="input" autocomplete="email" placeholder="tu@correo.com" required>
-                        </div>
+                <div class="field">
+                    <label for="login-password" class="label">Contraseña</label>
+                    <input type="password" id="login-password" name="password" class="input" autocomplete="current-password" required>
+                </div>
 
-                        <div class="field">
-                            <label for="login-password" class="label">Contraseña</label>
-                            <input type="password" id="login-password" name="password" class="input" autocomplete="current-password" required>
-                        </div>
-
-                        <button type="submit" class="btn primary full">Entrar</button>
-                    </form>
-                </section>
-
-                <section class="tab-panel" role="tabpanel" id="panel-register" aria-labelledby="tab-register" hidden>
-                    <form method="post" action="{{ path('app_auth_register') }}" class="auth-form" id="register-form">
-                        <div class="field">
-                            <label for="reg-name" class="label">Nombre</label>
-                            <input type="text" id="reg-name" name="name" class="input" autocomplete="name" placeholder="Tu nombre" required>
-                        </div>
-                        <div class="field">
-                            <label for="reg-email" class="label">Correo</label>
-                            <input type="email" id="reg-email" name="email" class="input" autocomplete="email" placeholder="tu@correo.com" required>
-                        </div>
-
-                        <div class="field">
-                            <label for="reg-password" class="label">Contraseña</label>
-                            <input type="password" id="reg-password" name="password" class="input" autocomplete="new-password" required>
-                        </div>
-                        <div class="field">
-                            <label for="reg-password-confirm" class="label">Confirmar contraseña</label>
-                            <input type="password" id="reg-password-confirm" name="password_confirm" class="input" autocomplete="new-password" required>
-                        </div>
-
-                        <button type="submit" class="btn full">Crear cuenta</button>
-                    </form>
-                </section>
-            </div>
-        </div>
+                <button type="submit" class="btn primary full">Entrar</button>
+            </form>
+        </section>
 
         {% if hasToken %}
-            <div class="actions">
+            <div class="actions" style="margin-top:.75rem;">
                 <a class="btn" href="{{ path('app_auth_wait') }}">Ir a autenticación/espera</a>
             </div>
         {% endif %}
+
+        <div class="actions" style="margin-top:1rem; justify-content:space-between;">
+            <button id="go-login" class="btn">Iniciar sesión</button>
+            <a class="btn" href="{{ path('app_register_index') }}">Crear cuenta</a>
+        </div>
     </div>
 
-    <script src="/assets/auth.js" defer></script>
+    <script>
+        // Scroll/focus to login when clicking the bottom button
+        (function(){
+            var btn = document.getElementById('go-login');
+            var email = document.getElementById('login-email');
+            var panel = document.getElementById('panel-login');
+            if (btn) {
+                btn.addEventListener('click', function(){
+                    if (panel && panel.scrollIntoView) { panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+                    if (email) { setTimeout(function(){ email.focus(); }, 250); }
+                });
+            }
+        })();
+    </script>
 {% endblock %}
+

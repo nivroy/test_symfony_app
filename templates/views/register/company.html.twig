@@ -1,0 +1,34 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Registro de empresa · Demo Symfony{% endblock %}
+
+{% block body %}
+  <div class="card auth-card">
+    <h1>Crear cuenta (empresa)</h1>
+    <form method="post" action="{{ path('app_auth_register') }}" class="auth-form">
+      <input type="hidden" name="type" value="company">
+      <div class="field">
+        <label for="company-name" class="label">Nombre de empresa</label>
+        <input type="text" id="company-name" name="company_name" class="input" placeholder="Mi Empresa S.A." required>
+      </div>
+      <div class="field">
+        <label for="company-ruc" class="label">RUC</label>
+        <input type="text" id="company-ruc" name="ruc" class="input" placeholder="RUC" required>
+      </div>
+      <div class="field">
+        <label for="reg-email" class="label">Correo</label>
+        <input type="email" id="reg-email" name="email" class="input" autocomplete="email" placeholder="empresa@correo.com" required>
+      </div>
+      <div class="field">
+        <label for="reg-password" class="label">Contraseña</label>
+        <input type="password" id="reg-password" name="password" class="input" autocomplete="new-password" required>
+      </div>
+      <div class="field">
+        <label for="reg-password-confirm" class="label">Confirmar contraseña</label>
+        <input type="password" id="reg-password-confirm" name="password_confirm" class="input" autocomplete="new-password" required>
+      </div>
+      <button type="submit" class="btn primary full">Crear cuenta</button>
+    </form>
+  </div>
+{% endblock %}
+

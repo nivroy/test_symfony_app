@@ -63,6 +63,10 @@ final class HomeController extends AbstractController
             $this->addFlash('error', 'Debes iniciar sesion para continuar.');
             return $this->redirectToRoute('app_home');
         }
+        if (($session->get('app.auth.type') ?? null) === 'company') {
+            $this->addFlash('error', 'Esta sección es solo para personas.');
+            return $this->redirectToRoute('app_company_home');
+        }
 
         $idToken = (string) ($session->get('app.auth.id_token') ?? $session->get('app.auth.token') ?? '');
         $digitalToken = null;

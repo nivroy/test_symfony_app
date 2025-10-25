@@ -1,0 +1,15 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Crear cuenta · Demo Symfony{% endblock %}
+
+{% block body %}
+  <div class="card">
+    <h1>Crear cuenta</h1>
+    <p>Elige el tipo de cuenta que deseas crear:</p>
+    <div class="actions">
+      <a class="btn primary" href="{{ path('app_register_person') }}">Crear cuenta para persona</a>
+      <a class="btn" href="{{ path('app_register_company') }}">Crear cuenta para empresa</a>
+    </div>
+  </div>
+{% endblock %}
+

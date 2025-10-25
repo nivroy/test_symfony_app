@@ -111,14 +111,16 @@
 
             function refreshDigitalToken(){
                 return fetch('{{ path('app_api_token_digital') }}', { credentials: 'same-origin' })
-                    .then(function(r){ return r.json(); })
+                    .then(function(r){ return r.json().catch(function(){ return { error: 'Respuesta inválida del servidor' }; }); })
                     .then(function(data){
                         if (data && data.token) {
                             var el = document.getElementById('digital-token');
                             if (el) { el.textContent = String(data.token); }
+                        } else if (data && data.error) {
+                            if (window.showServiceError) window.showServiceError(data.error);
                         }
                     })
-                    .catch(function(){ /* silent */ });
+                    .catch(function(err){ if (window.showServiceError) window.showServiceError('No se pudo actualizar el token.'); });
             }
 
             function scheduleNextRefresh(){

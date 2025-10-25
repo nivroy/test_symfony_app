@@ -11,9 +11,6 @@ final class ServiceAPI
         #[Autowire(env: 'API_COMPANY_ID')] private readonly ?string $defaultCompanyId = null,
     ) {}
 
-    /**
-     * Fetch 6-digit token from local API using a Firebase ID token for auth.
-     */
     public function fetchDigitalToken(string $idToken, ?string $companyId = null): string
     {
         $company = $companyId ?: ($this->defaultCompanyId ?? '');
@@ -24,7 +21,8 @@ final class ServiceAPI
             throw new \RuntimeException('Missing ID token for authorization.');
         }
 
-        $url = rtrim($this->baseUrl ?: 'http://localhost:8000', '/') . '/api/v1/tokens/digital?companyId=' . rawurlencode($company);
+        $base = $this->baseUrl !== '' ? $this->baseUrl : 'http://localhost:8000';
+        $url = rtrim($base, '/') . '/api/v1/tokens/digital?companyId=' . rawurlencode($company);
 
         $opts = [
             'http' => [
@@ -89,5 +87,98 @@ final class ServiceAPI
 
         return null;
     }
-}
 
+    public function generateApiKey(string $idToken): string
+    {
+        if ($idToken === '') {
+            throw new \RuntimeException('Missing ID token for authorization.');
+        }
+        $base = $this->baseUrl !== '' ? $this->baseUrl : 'http://localhost:8000';
+        $url = rtrim($base, '/') . '/api/v1/apikeys/generate';
+
+        $opts = [
+            'http' => [
+                'method' => 'POST',
+                'header' =>
+                    "Accept: application/json\r\n" .
+                    "Content-Type: application/json\r\n" .
+                    'Authorization: Bearer ' . $idToken . "\r\n",
+                'content' => '{}',
+                'ignore_errors' => true,
+                'timeout' => 10,
+            ],
+        ];
+        $ctx = stream_context_create($opts);
+        $res = @file_get_contents($url, false, $ctx);
+        if ($res === false) {
+            throw new \RuntimeException('No se pudo generar la API Key.');
+        }
+        /** @var array<string,mixed> $data */
+        $data = json_decode($res, true);
+        if (!is_array($data)) {
+            throw new \RuntimeException('Respuesta inválida al generar API Key.');
+        }
+        $key = $this->extractApiKey($data);
+        if ($key === null || $key === '') {
+            throw new \RuntimeException('No se encontró API Key en la respuesta.');
+        }
+        return $key;
+    }
+
+    /**
+     * Rotate API key using backend endpoint. Returns array with apiKey and keyId.
+     * @param array<string,mixed> $payload Minimal required: accountId, oldKeyId
+     * @return array{apiKey:string,keyId:string}
+     */
+    public function rotateApiKey(string $idToken, array $payload): array
+    {
+        if ($idToken === '') {
+            throw new \RuntimeException('Missing ID token for authorization.');
+        }
+        $base = $this->baseUrl !== '' ? $this->baseUrl : 'http://localhost:8000';
+        $url = rtrim($base, '/') . '/api/v1/api-keys/rotate';
+
+        $opts = [
+            'http' => [
+                'method' => 'POST',
+                'header' =>
+                    "Accept: application/json\r\n" .
+                    "Content-Type: application/json\r\n" .
+                    'Authorization: Bearer ' . $idToken . "\r\n",
+                'content' => json_encode($payload, JSON_UNESCAPED_SLASHES),
+                'ignore_errors' => true,
+                'timeout' => 15,
+            ],
+        ];
+        $ctx = stream_context_create($opts);
+        $res = @file_get_contents($url, false, $ctx);
+        if ($res === false) {
+            throw new \RuntimeException('No se pudo rotar la API Key.');
+        }
+        $data = json_decode($res, true);
+        if (!is_array($data) || empty($data['apiKey']) || empty($data['keyId'])) {
+            throw new \RuntimeException('Respuesta inválida al rotar API Key.');
+        }
+        return ['apiKey' => (string)$data['apiKey'], 'keyId' => (string)$data['keyId']];
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     */
+    private function extractApiKey(array $data): ?string
+    {
+        foreach (['apiKey', 'key', 'token'] as $k) {
+            if (isset($data[$k]) && is_scalar($data[$k])) {
+                $v = (string) $data[$k];
+                if ($v !== '') return $v;
+            }
+        }
+        foreach ($data as $v) {
+            if (is_array($v)) {
+                $res = $this->extractApiKey($v);
+                if ($res) return $res;
+            }
+        }
+        return null;
+    }
+}

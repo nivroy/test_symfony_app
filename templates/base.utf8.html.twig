@@ -24,24 +24,9 @@
     {% if errorMessages is not empty %}
         <div class="modal-overlay" data-modal>
             <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-                <h2 id="modal-title">OcurriÃ³ un error</h2>
+                <h2 id="modal-title">Ocurrió un error</h2>
                 <ul class="modal-messages">
                     {% for message in errorMessages %}
-                        <li>{{ message }}</li>
-                    {% endfor %}
-                </ul>
-                <div class="modal-actions"><button class="btn primary" data-close-modal>Cerrar</button></div>
-            </div>
-        </div>
-    {% endif %}
-
-    {% set warningMessages = app.flashes('warning') %}
-    {% if warningMessages is not empty %}
-        <div class="modal-overlay" data-modal>
-            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-warn">
-                <h2 id="modal-title-warn">Aviso</h2>
-                <ul class="modal-messages">
-                    {% for message in warningMessages %}
                         <li>{{ message }}</li>
                     {% endfor %}
                 </ul>
@@ -65,7 +50,7 @@
     {% block body %}{% endblock %}
     <div class="page-spacer" aria-hidden="true"></div>
     <footer class="site-footer">
-        <p>Hecho con Symfony Â· Minimal UI</p>
+        <p>Hecho con Symfony · Minimal UI</p>
     </footer>
 </main>
 
