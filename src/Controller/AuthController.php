@@ -39,28 +39,29 @@ final class AuthController extends AbstractController
         $session?->set('app.auth.id_token', $data['idToken'] ?? '');
         $session?->set('app.auth.uid', $data['localId'] ?? '');
         $session?->set('app.auth.email', $data['email'] ?? $email);
-        // keep compatibility with existing guard
+        // compatibilidad con guard existente
         $session?->set('app.auth.token', $data['idToken'] ?? '');
 
-        // Print token to server console
+        // (solo dev) imprime token en consola del servidor
         if (!empty($data['idToken'])) {
             @error_log('bearer ' . $data['idToken']);
         }
 
-        // Detect user type from Firestore to route accordingly
+        // Detectar tipo de usuario (company/person) desde Firestore
         $type = 'person';
         try {
             $uid = (string) ($session?->get('app.auth.uid') ?? '');
             if ($uid !== '') {
                 $company = $firestore->getDocument('companies', $uid);
-                if ($company !== null) { $type = 'company'; }
-                else {
+                if ($company !== null) {
+                    $type = 'company';
+                } else {
                     $person = $firestore->getDocument('persons', $uid);
                     if ($person !== null) { $type = 'person'; }
                 }
             }
         } catch (\Throwable $e) {
-            // default to person on lookup failure
+            // default: person
         }
         $session?->set('app.auth.type', $type);
 
@@ -112,14 +113,15 @@ final class AuthController extends AbstractController
             $session?->set('app.auth.company_name', $companyName);
             $session?->set('app.auth.ruc', $ruc);
         }
+        // compatibilidad con guard existente
         $session?->set('app.auth.token', $data['idToken'] ?? '');
 
-        // Print token to server console
+        // (solo dev) imprime token
         if (!empty($data['idToken'])) {
             @error_log('bearer ' . $data['idToken']);
         }
 
-        // Create Firestore document persons/[uid] or companies/[uid]
+        // Crear documento en Firestore (persons/[uid] o companies/[uid]) si está configurado
         $uid = (string) ($data['localId'] ?? '');
         if ($uid !== '' && $firestore->isConfigured()) {
             try {
@@ -134,15 +136,6 @@ final class AuthController extends AbstractController
                         'apiKey' => null,
                     ]);
                     $session?->set('app.auth.type', 'company');
-                    // Solicitar generación de API Key al backend (almacenamiento a cargo del backend)
-                    try {
-                        $idToken = (string) ($session?->get('app.auth.id_token') ?? '');
-                        if ($idToken !== '') {
-                            $this->api->generateApiKey($idToken);
-                        }
-                    } catch (\Throwable $e) {
-                        $this->addFlash('warning', 'No se pudo generar la API Key en el registro: ' . $e->getMessage());
-                    }
                 } else {
                     $firestore->createPersonDocument($uid, [
                         'name' => $name,

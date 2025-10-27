@@ -22,14 +22,7 @@
             </form>
         </section>
 
-        {% if hasToken %}
-            <div class="actions" style="margin-top:.75rem;">
-                <a class="btn" href="{{ path('app_auth_wait') }}">Ir a autenticación/espera</a>
-            </div>
-        {% endif %}
-
         <div class="actions" style="margin-top:1rem; justify-content:space-between;">
-            <button id="go-login" class="btn">Iniciar sesión</button>
             <a class="btn" href="{{ path('app_register_index') }}">Crear cuenta</a>
         </div>
     </div>

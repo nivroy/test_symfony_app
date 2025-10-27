@@ -1,0 +1,112 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Validar Token · Demo Symfony{% endblock %}
+
+{% block body %}
+    <div class="card">
+        <h1>Ingrese su token de validación</h1>
+
+        {# Mensajes flash (éxito / error) #}
+        {% for label, messages in app.flashes %}
+            {% for message in messages %}
+                <div class="flash flash-{{ label }}">{{ message }}</div>
+            {% endfor %}
+        {% endfor %}
+
+        {# Importante: pasar el {ticket} a la ruta #}
+        <form method="post" action="{{ path('app_auth_validate', { ticket: ticket }) }}" class="auth-validate" novalidate>
+            <input type="hidden" name="ticket" value="{{ ticket }}"/>
+
+            <div class="form-group">
+                <label for="validation-token" class="label">Ticket: {{ ticket }}</label>
+                <label for="validation-token" class="label">Token</label>
+                <input
+                    type="text"
+                    id="validation-token"
+                    name="validation_token"
+                    maxlength="6"
+                    pattern="[0-9]{6}"
+                    required
+                    placeholder="000000"
+                    class="input"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                />
+            </div>
+
+            <button type="submit" class="btn">Aceptar</button>
+        </form>
+    </div>
+
+    <style>
+        .card {
+            max-width: 400px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            border-radius: .75rem;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08);
+        }
+        h1 {
+            font-size: 1.5rem;
+            color: #0b5ed7;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .flash { margin-bottom: .75rem; padding: .6rem .75rem; border-radius: .45rem; font-size: .95rem; }
+        .flash-success { background: #e9f7ef; color: #146c43; border: 1px solid #badbcc; }
+        .flash-error { background: #fdecea; color: #b02a37; border: 1px solid #f5c2c7; }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .label {
+            font-weight: 600;
+            margin-bottom: .4rem;
+            color: #333;
+        }
+        .input {
+            padding: .6rem .75rem;
+            font-size: 1.1rem;
+            border: 1px solid #d0d4da;
+            border-radius: .45rem;
+            text-align: center;
+            letter-spacing: .2rem;
+            outline: none;
+            transition: border-color .2s ease;
+        }
+        .input:focus {
+            border-color: #0b5ed7;
+            box-shadow: 0 0 0 2px rgba(13,110,253,.15);
+        }
+        .btn {
+            display: inline-block;
+            width: 100%;
+            background: #0b5ed7;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: .45rem;
+            padding: .75rem;
+            cursor: pointer;
+            transition: background .2s ease, transform .05s ease;
+        }
+        .btn:hover {
+            background: #0a53be;
+        }
+        .btn:active {
+            transform: scale(0.98);
+        }
+    </style>
+
+    <script>
+        // Autofocus al campo de token
+        (function(){
+            var el = document.getElementById('validation-token');
+            if (el) el.focus();
+        })();
+    </script>
+{% endblock %}

@@ -85,6 +85,32 @@ final class HomeController extends AbstractController
         ]);
     }
 
+    #[Route('/autenticacion/validate/{ticket}', name: 'app_auth_validate', methods: ['GET','POST'])]
+    public function validateToken(Request $request, string $ticket): Response
+    {
+        if ($request->isMethod('POST')) {
+            $code = trim((string) $request->request->get('validation_token', ''));
+
+            if (!preg_match('/^\d{6}$/', $code)) {
+                $this->addFlash('error', 'El token debe tener exactamente 6 dígitos.');
+                return $this->redirectToRoute('app_auth_validate', ['ticket' => $ticket]);
+            }
+
+            try {
+                $this->api->validateTicketCode($ticket, $code);
+                $this->addFlash('success', 'Token validado correctamente.');
+                return $this->redirectToRoute('app_home');
+            } catch (\Throwable $e) {
+                $this->addFlash('error', $e->getMessage() ?: 'No se pudo validar el token.');
+                return $this->redirectToRoute('app_auth_validate', ['ticket' => $ticket]);
+            }
+        }
+
+        return $this->render('views/auth_validate.html.twig', [
+            'ticket' => $ticket,
+        ]);
+    }
+
     #[Route('/autenticacion/confirmar', name: 'app_auth_confirm', methods: ['POST'])]
     public function confirm(Request $request): Response
     {

@@ -18,6 +18,8 @@ final class CompanyController extends AbstractController
     public function home(Request $request, Firestore $firestore): Response
     {
         $session = $request->getSession();
+
+        // 🔒 Validaciones de sesión y tipo de usuario
         if (!$session || !$session->has('app.auth.token')) {
             $this->addFlash('error', 'Debes iniciar sesión para continuar.');
             return $this->redirectToRoute('app_home');
@@ -27,57 +29,186 @@ final class CompanyController extends AbstractController
             return $this->redirectToRoute('app_auth_wait');
         }
 
-        $uid = (string) ($session->get('app.auth.uid') ?? '');
+        $idToken = (string) ($session->get('app.auth.id_token') ?? '');
+        $uid     = (string) ($session->get('app.auth.uid') ?? '');
+
+        // 🏢 Datos de la empresa (opcional)
         $company = null;
-        $apiKey = null;
-        $keyId = null;
         if ($uid !== '' && $firestore->isConfigured()) {
             try {
                 $company = $firestore->getDocument('companies', $uid);
-                $latest = $firestore->getCompanyLatestApiKey($uid);
-                $apiKey = $latest['value'] ?? null;
-                $keyId = $latest['keyId'] ?? null;
             } catch (\Throwable $e) {
                 $this->addFlash('warning', 'No se pudo obtener datos de la empresa: ' . $e->getMessage());
             }
         }
 
+        // 🔑 Obtener todas las API Keys de la empresa
+        try {
+            $apiKeys = $this->api->getApiKeys($idToken);
+        } catch (\Throwable $e) {
+            $this->addFlash('warning', 'No se pudieron obtener las API Keys: ' . $e->getMessage());
+            $apiKeys = [];
+        }
+
+        // 📦 Renderizar vista
         return $this->render('views/company.html.twig', [
-            'companyName' => $company['companyName'] ?? ($session->get('app.auth.company_name') ?? null),
-            'ruc' => $company['ruc'] ?? ($session->get('app.auth.ruc') ?? null),
-            'apiKey' => $apiKey,
-            'keyId' => $keyId,
+            'companyName'     => $company['companyName'] ?? ($session->get('app.auth.company_name') ?? null),
+            'ruc'             => $company['ruc'] ?? ($session->get('app.auth.ruc') ?? null),
+            'apiKeys'         => $apiKeys,
         ]);
     }
 
-    #[Route('/api/company/apikey/refresh', name: 'app_api_company_apikey_refresh', methods: ['POST'])]
-    public function refreshApiKey(Request $request, Firestore $firestore): JsonResponse
+    #[Route('/api/company/apikey/create', name: 'app_api_company_apikey_create', methods: ['POST'])]
+    public function createApiKey(Request $request): JsonResponse
     {
         $session = $request->getSession();
+
+        // ✅ Validar token CSRF
+        $csrf = (string) $request->request->get('_token', '');
+        if (!$this->isCsrfTokenValid('company_apikey_create', $csrf)) {
+            return $this->json(['error' => 'invalid_csrf_token'], 400, ['Cache-Control' => 'no-store']);
+        }
+
+        // ✅ Validar sesión y tipo de usuario
         if (!$session || ($session->get('app.auth.type') ?? null) !== 'company') {
-            return new JsonResponse(['error' => 'forbidden'], 403);
+            return $this->json(['error' => 'forbidden'], 403, ['Cache-Control' => 'no-store']);
         }
+
         $idToken = (string) ($session->get('app.auth.id_token') ?? '');
-        if ($idToken === '') {
-            return new JsonResponse(['error' => 'unauthorized'], 401);
+        $uid     = (string) ($session->get('app.auth.uid') ?? '');
+        if ($idToken === '' || $uid === '') {
+            return $this->json(['error' => 'unauthorized'], 401, ['Cache-Control' => 'no-store']);
         }
-        $uid = (string) ($session->get('app.auth.uid') ?? '');
-        if ($uid === '') {
-            return new JsonResponse(['error' => 'unauthorized'], 401);
-        }
+
+        // ✅ Llamar al servicio que realmente crea la API Key
         try {
-            $latest = $firestore->getCompanyLatestApiKey($uid);
-            $oldKeyId = (string) ($latest['keyId'] ?? '');
-            if ($oldKeyId === '') {
-                return new JsonResponse(['error' => 'No hay una clave previa para rotar.'], 400);
+            // Ejecutar creación de API Key
+            $result = $this->api->createApiKey($idToken);
+
+            // ✅ Guardar el plaintext en sesión para mostrarlo una sola vez
+            if (!empty($result['apiKey'])) {
+                $session->set('app.company.apikey.plaintext', $result['apiKey']);
             }
-            $res = $this->api->rotateApiKey($idToken, [
-                'accountId' => $uid,
-                'oldKeyId' => $oldKeyId,
-            ]);
-            return new JsonResponse(['apiKey' => $res['apiKey'], 'keyId' => $res['keyId']]);
+
+            // ✅ Devolver JSON de éxito
+            return $this->json([
+                'success' => true,
+                'apiKey'  => $result['apiKey'] ?? null,
+                'keyId'   => $result['keyId'] ?? null,
+                'raw'     => $result['raw'] ?? null,
+            ], 200, ['Cache-Control' => 'no-store']);
         } catch (\Throwable $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 502);
+            return $this->json([
+                'error' => 'No se pudo crear la API Key: ' . $e->getMessage(),
+            ], 502, ['Cache-Control' => 'no-store']);
         }
     }
+
+    #[Route('/api/company/apikey/rotate', name: 'app_api_company_apikey_rotate', methods: ['POST'])]
+    public function rotateApiKey(Request $request): JsonResponse
+    {
+        $session = $request->getSession();
+
+        // ✅ CSRF (envía un _token desde el form/JS con este id)
+        $csrf = (string) $request->request->get('_token', '');
+        if (!$this->isCsrfTokenValid('company_apikey_rotate', $csrf)) {
+            return $this->json(['error' => 'invalid_csrf_token'], 400, ['Cache-Control' => 'no-store']);
+        }
+
+        // ✅ Validar sesión/tipo
+        if (!$session || ($session->get('app.auth.type') ?? null) !== 'company') {
+            return $this->json(['error' => 'forbidden'], 403, ['Cache-Control' => 'no-store']);
+        }
+
+        $idToken = (string) ($session->get('app.auth.id_token') ?? '');
+        $uid     = (string) ($session->get('app.auth.uid') ?? '');
+        if ($idToken === '' || $uid === '') {
+            return $this->json(['error' => 'unauthorized'], 401, ['Cache-Control' => 'no-store']);
+        }
+
+        // ✅ Leer oldKeyId del request
+        $oldKeyId = (string) $request->request->get('oldKeyId', '');
+        if ($oldKeyId === '') {
+            return $this->json(['error' => 'missing_oldKeyId'], 400, ['Cache-Control' => 'no-store']);
+        }
+
+        try {
+            // Llama a tu método simple (sin companyId) alineado al cURL
+            $res = $this->api->rotateApiKey($idToken, $oldKeyId);
+
+            // (opcional) guardarlo para mostrar una sola vez en la vista
+            // $session->set('app.company.apikey.plaintext', $res['apiKey']);
+
+            return $this->json([
+                'success'       => true,
+                'mode'          => 'rotated',
+                'apiKey'        => $res['apiKey'],              // plaintext nueva
+                'keyId'         => $res['keyId'],
+                'secretVersion' => $res['secretVersion'] ?? null,
+                'traceId'       => $res['traceId'] ?? null,
+            ], 200, ['Cache-Control' => 'no-store']);
+        } catch (\Throwable $e) {
+            return $this->json([
+                'error' => 'No se pudo rotar la API Key: '.$e->getMessage(),
+            ], 502, ['Cache-Control' => 'no-store']);
+        }
+    }
+
+    #[Route('/api/company/apikey/delete', name: 'app_api_company_apikey_delete', methods: ['POST', 'DELETE'])]
+    public function deleteApiKey(Request $request): JsonResponse
+    {
+        $session = $request->getSession();
+
+        // ✅ Obtener keyId del body (POST/x-www-form-urlencoded) o del JSON (DELETE/POST)
+        $keyId = (string) ($request->request->get('keyId') ?? '');
+        if ($keyId === '' && $request->getContent()) {
+            try {
+                $json = json_decode($request->getContent(), true, 512, JSON_THROW_ON_ERROR);
+                if (is_array($json) && isset($json['keyId'])) {
+                    $keyId = (string) $json['keyId'];
+                }
+            } catch (\Throwable) {
+                // ignoramos parse error; validamos abajo
+            }
+        }
+
+        // ✅ CSRF (usa un token distinto para delete)
+        // - Para POST espera _token en el body (como tus otros endpoints)
+        // - Para DELETE permite también cabecera 'X-CSRF-Token' o query param si lo necesitas
+        $csrf = (string) ($request->request->get('_token') ?? $request->headers->get('X-CSRF-Token') ?? $request->query->get('_token') ?? '');
+        if (!$this->isCsrfTokenValid('company_apikey_delete', $csrf)) {
+            return $this->json(['error' => 'invalid_csrf_token'], 400, ['Cache-Control' => 'no-store']);
+        }
+
+        // ✅ Validar sesión/tipo
+        if (!$session || ($session->get('app.auth.type') ?? null) !== 'company') {
+            return $this->json(['error' => 'forbidden'], 403, ['Cache-Control' => 'no-store']);
+        }
+
+        $idToken = (string) ($session->get('app.auth.id_token') ?? '');
+        $uid     = (string) ($session->get('app.auth.uid') ?? '');
+        if ($idToken === '' || $uid === '') {
+            return $this->json(['error' => 'unauthorized'], 401, ['Cache-Control' => 'no-store']);
+        }
+
+        if ($keyId === '') {
+            return $this->json(['error' => 'missing_keyId'], 400, ['Cache-Control' => 'no-store']);
+        }
+
+        try {
+            $res = $this->api->deleteApiKey($idToken, $keyId);
+
+            return $this->json([
+                'success' => (bool) ($res['success'] ?? true),
+                'keyId'   => $res['keyId'] ?? $keyId,
+                'message' => $res['message'] ?? null,
+                'traceId' => $res['traceId'] ?? null,
+            ], 200, ['Cache-Control' => 'no-store']);
+        } catch (\Throwable $e) {
+            return $this->json([
+                'error' => 'No se pudo eliminar la API Key: ' . $e->getMessage(),
+            ], 502, ['Cache-Control' => 'no-store']);
+        }
+    }
+
 }
