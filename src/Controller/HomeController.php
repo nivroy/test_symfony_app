@@ -27,7 +27,6 @@ final class HomeController extends AbstractController
         ]);
     }
 
-    // Legacy flow (kept for compatibility, not used by new UI)
     #[Route('/autenticacion/iniciar', name: 'app_auth_start', methods: ['POST'])]
     public function start(Request $request): Response
     {
@@ -99,7 +98,6 @@ final class HomeController extends AbstractController
             try {
                 $this->api->validateTicketCode($ticket, $code);
                 $this->addFlash('success', 'Token validado correctamente.');
-                return $this->redirectToRoute('app_home');
             } catch (\Throwable $e) {
                 $this->addFlash('error', $e->getMessage() ?: 'No se pudo validar el token.');
                 return $this->redirectToRoute('app_auth_validate', ['ticket' => $ticket]);

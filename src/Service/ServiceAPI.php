@@ -6,7 +6,17 @@ namespace App\Service;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-final class ServiceAPI
+interface ServiceInterface {
+    public function buildUrl(string $path, array $query = []): string;
+    public function createApiKey(string $idToken): array;
+    public function getApiKeys(string $idToken): array;
+    public function fetchDigitalToken(string $idToken, ?string $companyId = null): string;
+    public function rotateApiKey(string $idToken, string $oldKeyId): array;
+    public function deleteApiKey(string $idToken, string $keyId): array;
+    public function validateTicketCode(string $ticketCode, string $code);
+}
+
+class ServiceAPI implements ServiceInterface
 {
     public function __construct(
         #[Autowire(env: 'API_BASE_URL')] private readonly string $baseUrl,
@@ -14,7 +24,7 @@ final class ServiceAPI
         private readonly HttpClientInterface $http,
     ) {}
 
-    private function buildUrl(string $path, array $query = []): string
+    public function buildUrl(string $path, array $query = []): string
     {
         $base = $this->baseUrl !== '' ? rtrim($this->baseUrl, '/') : 'http://localhost:8000';
         if (!\preg_match('#^https?://#i', $base)) {
@@ -26,9 +36,6 @@ final class ServiceAPI
         }
         return $url;
     }
-
-    /** ---------- NUEVOS MÉTODOS ---------- */
-
 
     public function createApiKey(string $idToken): array
     {
@@ -51,13 +58,10 @@ final class ServiceAPI
 
         $data = $this->decodeJsonOrFail($response, 'No se pudo crear la API Key.');
 
-        // Según tu ejemplo de Postman, la respuesta contiene apiKey y keyId
         $apiKey = $this->extractApiKey(is_array($data) ? $data : (array) $data);
         $keyId = isset($data['keyId']) && is_scalar($data['keyId']) ? (string)$data['keyId'] : null;
 
-        // Validación mínima
         if ($apiKey === null && $keyId === null) {
-            // devolver toda la respuesta en el error contextual
             throw new \RuntimeException('Respuesta inválida al crear API Key. ' . json_encode($data));
         }
 
@@ -95,7 +99,6 @@ final class ServiceAPI
             return ($item['status'] ?? null) === 'active';
         });
 
-        // Mapeamos cada ítem a un formato más simple
         $keys = array_map(static function (array $item): array {
             return [
                 'keyId' => $item['keyId'] ?? null,
@@ -195,13 +198,12 @@ final class ServiceAPI
             throw new \RuntimeException('Debe indicar el keyId a eliminar.');
         }
 
-        // /api/v1/api-keys/{keyId}
         $url = $this->buildUrl('/api/v1/api-keys/' . rawurlencode($keyId));
 
         $response = $this->http->request('DELETE', $url, [
             'headers' => [
                 'Accept'        => 'application/json',
-                'Content-Type'  => 'application/json', // opcional; lo dejamos para seguir tu cURL
+                'Content-Type'  => 'application/json',
                 'Authorization' => 'Bearer ' . $idToken,
             ],
             'timeout' => 12,
@@ -211,7 +213,6 @@ final class ServiceAPI
         $headers = $response->getHeaders(false);
         $traceId = $headers['x-trace-id'][0] ?? ($headers['trace-id'][0] ?? null);
 
-        // Algunos backends devuelven 204 No Content en DELETE
         if ($status === 204) {
             return [
                 'success' => true,
@@ -221,10 +222,8 @@ final class ServiceAPI
             ];
         }
 
-        // Si no es 204, intentamos decodificar JSON y validar que sea 2xx
         $data = $this->decodeJsonOrFail($response, 'No se pudo eliminar la API Key.');
 
-        // Armamos una respuesta estándar. Si el backend devuelve 'success', 'message', etc., los exponemos.
         $respKeyId = isset($data['keyId']) && is_scalar($data['keyId']) ? (string)$data['keyId'] : $keyId;
 
         return [
@@ -240,15 +239,98 @@ final class ServiceAPI
 
     public function validateTicketCode(string $ticketCode, string $code)
     {
+        $ticketCode = trim($ticketCode);
+        $code = trim($code);
+
+        if ($ticketCode === '' || $code === '') {
+            throw new \RuntimeException('Debe indicar ticketCode y code (token).');
+        }
+        // Opcional: forzar token de 6 dígitos numéricos
+        if (\preg_match('/^\d{6}$/', $code) !== 1) {
+            throw new \RuntimeException('El código (token) debe ser un número de 6 dígitos.');
+        }
+
+        $url = $this->buildUrl('/api/v1/tokens/validate');
+
+        $response = $this->http->request('POST', $url, [
+            'headers' => [
+                'Accept'       => 'application/json',
+                'Content-Type' => 'application/json',
+            ],
+            'json' => [
+                'token'    => $code,
+                'ticketId' => $ticketCode,
+            ],
+            'timeout' => 10,
+        ]);
+
+        // Lanza excepción si HTTP != 2xx o si el cuerpo no es JSON válido
+        $data = $this->decodeJsonOrFail($response, 'No se pudo validar el token del ticket.');
+
+        // Campos típicos de la respuesta del ejemplo
+        $success = (bool)($data['success'] ?? false);
+        $reason  = isset($data['reason']) && is_scalar($data['reason']) ? (string)$data['reason'] : null;
+        $status  = isset($data['status']) && is_scalar($data['status']) ? (string)$data['status'] : null;
+        $traceId = isset($data['traceId']) && is_scalar($data['traceId']) ? (string)$data['traceId'] : null;
+
+        // Fallback: intentar obtener traceId desde headers si no vino en el body
+        if ($traceId === null) {
+            $headers = $response->getHeaders(false);
+            $hdrTrace = $headers['x-trace-id'][0] ?? ($headers['trace-id'][0] ?? null);
+            if (is_scalar($hdrTrace)) {
+                $traceId = (string)$hdrTrace;
+            }
+        }
+
+        // Si el backend devuelve un objeto ticket, lo normalizamos (opcional)
+        $ticket = null;
+        if (isset($data['ticket']) && \is_array($data['ticket'])) {
+            $ticket = $this->normalizeTicket($data['ticket']);
+        }
+
+        return [
+            'success' => $success,
+            'reason'  => $reason,
+            'status'  => $status,
+            'traceId' => $traceId,
+            'ticket'  => $ticket,
+            'raw'     => $data,
+        ];
     }
+
 
     /** ---------- helpers internos ---------- */
 
-    /** @return array<string,mixed> */
+    private function normalizeTicket(array $data): array
+    {
+        $id         = isset($data['id']) && is_scalar($data['id']) ? (string)$data['id'] : null;
+        $status     = isset($data['status']) && is_scalar($data['status']) ? (string)$data['status'] : null;
+        $attempts   = isset($data['attempts']) && is_numeric($data['attempts']) ? (int)$data['attempts'] : null;
+        $createdAt  = isset($data['createdAt']) && is_scalar($data['createdAt']) ? (string)$data['createdAt'] : null;
+        $updatedAt  = isset($data['updatedAt']) && is_scalar($data['updatedAt']) ? (string)$data['updatedAt'] : null;
+        $expiresAt  = isset($data['expiresAt']) && is_scalar($data['expiresAt']) ? (string)$data['expiresAt'] : null;
+        $meta       = isset($data['meta']) && is_array($data['meta']) ? $data['meta'] : [];
+
+        if ($id === null || $status === null) {
+            throw new \RuntimeException('Respuesta de ticket inválida: '.json_encode($data));
+        }
+
+        return [
+            'id'        => $id,
+            'status'    => $status,
+            'attempts'  => $attempts,
+            'createdAt' => $createdAt,
+            'updatedAt' => $updatedAt,
+            'expiresAt' => $expiresAt,
+            'meta'      => $meta,
+            'raw'       => $data,
+        ];
+    }
+
     private function decodeJsonOrFail(\Symfony\Contracts\HttpClient\ResponseInterface $response, string $fallbackMsg): array
     {
         $status = $response->getStatusCode();
-        $raw = $response->getContent(false); // no lanza por status
+        $raw = $response->getContent(false);
         $data = null;
         try {
             $parsed = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
@@ -271,7 +353,6 @@ final class ServiceAPI
         return $data;
     }
 
-    /** @param array<string,mixed> $data */
     private function extractSixDigitToken(array $data): ?string
     {
         foreach (['token','code','otp','pin'] as $k) {
@@ -295,7 +376,6 @@ final class ServiceAPI
         return null;
     }
 
-    /** @param array<string,mixed> $data */
     private function extractApiKey(array $data): ?string
     {
         foreach (['apiKey','key','token'] as $k) {

@@ -15,33 +15,16 @@ final class Firestore
         return $this->creds->isConfigured();
     }
 
-    /**
-     * @param array<string,mixed> $fields
-     */
     public function createUserDocument(string $uid, array $fields): void
     {
         $this->createDocument('users', $uid, $fields);
     }
 
-    /**
-     * @param array<string,mixed> $fields
-     */
-    public function createPersonDocument(string $uid, array $fields): void
-    {
-        $this->createDocument('persons', $uid, $fields);
-    }
-
-    /**
-     * @param array<string,mixed> $fields
-     */
     public function createCompanyDocument(string $uid, array $fields): void
     {
         $this->createDocument('companies', $uid, $fields);
     }
 
-    /**
-     * @param array<string,mixed> $fields
-     */
     public function updateDocument(string $collection, string $uid, array $fields): void
     {
         if (!$this->creds->isConfigured()) {
@@ -82,9 +65,6 @@ final class Firestore
         }
     }
 
-    /**
-     * @param array<string,mixed> $fields
-     */
     public function createDocument(string $collection, string $uid, array $fields): void
     {
         if (!$this->creds->isConfigured()) {
@@ -130,10 +110,6 @@ final class Firestore
         }
     }
 
-    /**
-     * @param array<string,mixed> $fields
-     * @return array<string,mixed>
-     */
     private function encodeFields(array $fields): array
     {
         $out = [];
@@ -144,9 +120,6 @@ final class Firestore
         return $out;
     }
 
-    /**
-     * @return array<string,mixed>
-     */
     private function encodeValue(mixed $value): array
     {
         return match (true) {
@@ -160,11 +133,6 @@ final class Firestore
         };
     }
 
-    /**
-     * Fetch a document and decode Firestore fields to plain PHP values.
-     *
-     * @return array<string,mixed>|null Returns null if not found
-     */
     public function getDocument(string $collection, string $uid): ?array
     {
         if (!$this->creds->isConfigured()) {
@@ -212,10 +180,6 @@ final class Firestore
         return $this->decodeFields($fields);
     }
 
-    /**
-     * @param array<string,mixed> $fields
-     * @return array<string,mixed>
-     */
     private function decodeFields(array $fields): array
     {
         $out = [];
@@ -225,9 +189,6 @@ final class Firestore
         return $out;
     }
 
-    /**
-     * @param array<string,mixed> $value
-     */
     private function decodeValue(array $value): mixed
     {
         if (isset($value['stringValue'])) return (string) $value['stringValue'];
@@ -241,10 +202,6 @@ final class Firestore
         return null;
     }
 
-    /**
-     * Read a document by full path like "companies/{uid}/apikey/latest".
-     * @return array<string,mixed>|null
-     */
     public function getDocumentByPath(string $path): ?array
     {
         if (!$this->creds->isConfigured()) {
@@ -290,9 +247,6 @@ final class Firestore
         return $this->decodeFields($fields);
     }
 
-    /**
-     * @return array{value?:string,keyId?:string}|null
-     */
     public function getCompanyLatestApiKey(string $uid): ?array
     {
         $doc = $this->getDocumentByPath('companies/' . $uid . '/apikey/latest');

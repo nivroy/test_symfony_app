@@ -6,7 +6,6 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class FirebaseAdminCredentials
 {
-    /** @var array<string,mixed>|null */
     private ?array $json;
 
     public function __construct(

@@ -19,7 +19,6 @@ final class CompanyController extends AbstractController
     {
         $session = $request->getSession();
 
-        // 🔒 Validaciones de sesión y tipo de usuario
         if (!$session || !$session->has('app.auth.token')) {
             $this->addFlash('error', 'Debes iniciar sesión para continuar.');
             return $this->redirectToRoute('app_home');
@@ -32,7 +31,6 @@ final class CompanyController extends AbstractController
         $idToken = (string) ($session->get('app.auth.id_token') ?? '');
         $uid     = (string) ($session->get('app.auth.uid') ?? '');
 
-        // 🏢 Datos de la empresa (opcional)
         $company = null;
         if ($uid !== '' && $firestore->isConfigured()) {
             try {
@@ -42,7 +40,6 @@ final class CompanyController extends AbstractController
             }
         }
 
-        // 🔑 Obtener todas las API Keys de la empresa
         try {
             $apiKeys = $this->api->getApiKeys($idToken);
         } catch (\Throwable $e) {
@@ -50,7 +47,6 @@ final class CompanyController extends AbstractController
             $apiKeys = [];
         }
 
-        // 📦 Renderizar vista
         return $this->render('views/company.html.twig', [
             'companyName'     => $company['companyName'] ?? ($session->get('app.auth.company_name') ?? null),
             'ruc'             => $company['ruc'] ?? ($session->get('app.auth.ruc') ?? null),
@@ -63,13 +59,11 @@ final class CompanyController extends AbstractController
     {
         $session = $request->getSession();
 
-        // ✅ Validar token CSRF
         $csrf = (string) $request->request->get('_token', '');
         if (!$this->isCsrfTokenValid('company_apikey_create', $csrf)) {
             return $this->json(['error' => 'invalid_csrf_token'], 400, ['Cache-Control' => 'no-store']);
         }
 
-        // ✅ Validar sesión y tipo de usuario
         if (!$session || ($session->get('app.auth.type') ?? null) !== 'company') {
             return $this->json(['error' => 'forbidden'], 403, ['Cache-Control' => 'no-store']);
         }
@@ -80,17 +74,13 @@ final class CompanyController extends AbstractController
             return $this->json(['error' => 'unauthorized'], 401, ['Cache-Control' => 'no-store']);
         }
 
-        // ✅ Llamar al servicio que realmente crea la API Key
         try {
-            // Ejecutar creación de API Key
             $result = $this->api->createApiKey($idToken);
 
-            // ✅ Guardar el plaintext en sesión para mostrarlo una sola vez
             if (!empty($result['apiKey'])) {
                 $session->set('app.company.apikey.plaintext', $result['apiKey']);
             }
 
-            // ✅ Devolver JSON de éxito
             return $this->json([
                 'success' => true,
                 'apiKey'  => $result['apiKey'] ?? null,
@@ -109,13 +99,11 @@ final class CompanyController extends AbstractController
     {
         $session = $request->getSession();
 
-        // ✅ CSRF (envía un _token desde el form/JS con este id)
         $csrf = (string) $request->request->get('_token', '');
         if (!$this->isCsrfTokenValid('company_apikey_rotate', $csrf)) {
             return $this->json(['error' => 'invalid_csrf_token'], 400, ['Cache-Control' => 'no-store']);
         }
 
-        // ✅ Validar sesión/tipo
         if (!$session || ($session->get('app.auth.type') ?? null) !== 'company') {
             return $this->json(['error' => 'forbidden'], 403, ['Cache-Control' => 'no-store']);
         }
@@ -126,23 +114,18 @@ final class CompanyController extends AbstractController
             return $this->json(['error' => 'unauthorized'], 401, ['Cache-Control' => 'no-store']);
         }
 
-        // ✅ Leer oldKeyId del request
         $oldKeyId = (string) $request->request->get('oldKeyId', '');
         if ($oldKeyId === '') {
             return $this->json(['error' => 'missing_oldKeyId'], 400, ['Cache-Control' => 'no-store']);
         }
 
         try {
-            // Llama a tu método simple (sin companyId) alineado al cURL
             $res = $this->api->rotateApiKey($idToken, $oldKeyId);
-
-            // (opcional) guardarlo para mostrar una sola vez en la vista
-            // $session->set('app.company.apikey.plaintext', $res['apiKey']);
 
             return $this->json([
                 'success'       => true,
                 'mode'          => 'rotated',
-                'apiKey'        => $res['apiKey'],              // plaintext nueva
+                'apiKey'        => $res['apiKey'],
                 'keyId'         => $res['keyId'],
                 'secretVersion' => $res['secretVersion'] ?? null,
                 'traceId'       => $res['traceId'] ?? null,
@@ -158,8 +141,6 @@ final class CompanyController extends AbstractController
     public function deleteApiKey(Request $request): JsonResponse
     {
         $session = $request->getSession();
-
-        // ✅ Obtener keyId del body (POST/x-www-form-urlencoded) o del JSON (DELETE/POST)
         $keyId = (string) ($request->request->get('keyId') ?? '');
         if ($keyId === '' && $request->getContent()) {
             try {
@@ -168,19 +149,14 @@ final class CompanyController extends AbstractController
                     $keyId = (string) $json['keyId'];
                 }
             } catch (\Throwable) {
-                // ignoramos parse error; validamos abajo
             }
         }
 
-        // ✅ CSRF (usa un token distinto para delete)
-        // - Para POST espera _token en el body (como tus otros endpoints)
-        // - Para DELETE permite también cabecera 'X-CSRF-Token' o query param si lo necesitas
         $csrf = (string) ($request->request->get('_token') ?? $request->headers->get('X-CSRF-Token') ?? $request->query->get('_token') ?? '');
         if (!$this->isCsrfTokenValid('company_apikey_delete', $csrf)) {
             return $this->json(['error' => 'invalid_csrf_token'], 400, ['Cache-Control' => 'no-store']);
         }
 
-        // ✅ Validar sesión/tipo
         if (!$session || ($session->get('app.auth.type') ?? null) !== 'company') {
             return $this->json(['error' => 'forbidden'], 403, ['Cache-Control' => 'no-store']);
         }
@@ -210,5 +186,7 @@ final class CompanyController extends AbstractController
             ], 502, ['Cache-Control' => 'no-store']);
         }
     }
+
+    
 
 }

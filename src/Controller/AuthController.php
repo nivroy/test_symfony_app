@@ -39,15 +39,12 @@ final class AuthController extends AbstractController
         $session?->set('app.auth.id_token', $data['idToken'] ?? '');
         $session?->set('app.auth.uid', $data['localId'] ?? '');
         $session?->set('app.auth.email', $data['email'] ?? $email);
-        // compatibilidad con guard existente
         $session?->set('app.auth.token', $data['idToken'] ?? '');
 
-        // (solo dev) imprime token en consola del servidor
         if (!empty($data['idToken'])) {
             @error_log('bearer ' . $data['idToken']);
         }
 
-        // Detectar tipo de usuario (company/person) desde Firestore
         $type = 'person';
         try {
             $uid = (string) ($session?->get('app.auth.uid') ?? '');
@@ -61,7 +58,7 @@ final class AuthController extends AbstractController
                 }
             }
         } catch (\Throwable $e) {
-            // default: person
+            $this->addFlash('error', $e->getMessage());
         }
         $session?->set('app.auth.type', $type);
 
@@ -113,15 +110,12 @@ final class AuthController extends AbstractController
             $session?->set('app.auth.company_name', $companyName);
             $session?->set('app.auth.ruc', $ruc);
         }
-        // compatibilidad con guard existente
         $session?->set('app.auth.token', $data['idToken'] ?? '');
 
-        // (solo dev) imprime token
         if (!empty($data['idToken'])) {
             @error_log('bearer ' . $data['idToken']);
         }
 
-        // Crear documento en Firestore (persons/[uid] o companies/[uid]) si está configurado
         $uid = (string) ($data['localId'] ?? '');
         if ($uid !== '' && $firestore->isConfigured()) {
             try {
@@ -137,7 +131,7 @@ final class AuthController extends AbstractController
                     ]);
                     $session?->set('app.auth.type', 'company');
                 } else {
-                    $firestore->createPersonDocument($uid, [
+                    $firestore->createUserDocument($uid, [
                         'name' => $name,
                         'email' => $email,
                         'createdAt' => $now,
