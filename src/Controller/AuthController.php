@@ -41,10 +41,12 @@ final class AuthController extends AbstractController
         $session?->set('app.auth.email', $data['email'] ?? $email);
         $session?->set('app.auth.token', $data['idToken'] ?? '');
 
-        if (!empty($data['idToken'])) {
+        // (Opcional) Log de token solo en dev
+        if (!empty($data['idToken']) && ($_ENV['APP_ENV'] ?? 'prod') === 'dev') {
             @error_log('bearer ' . $data['idToken']);
         }
 
+        // Detectar tipo (company/person)
         $type = 'person';
         try {
             $uid = (string) ($session?->get('app.auth.uid') ?? '');
@@ -62,11 +64,19 @@ final class AuthController extends AbstractController
         }
         $session?->set('app.auth.type', $type);
 
+        // 🔁 Volver a la página previa si existe return_to en sesión
+        $returnTo = (string) ($session?->get('return_to') ?? '');
+        if ($returnTo !== '') {
+            $session?->remove('return_to');
+            return $this->redirect($returnTo);
+        }
+
+        // Fallback por tipo
         return $this->redirectToRoute($type === 'company' ? 'app_company_home' : 'app_auth_wait');
     }
 
     #[Route('/auth/register', name: 'app_auth_register', methods: ['POST'])]
-    public function register(Request $request, \App\Service\Firestore $firestore): Response
+    public function register(Request $request, Firestore $firestore): Response
     {
         $type = strtolower((string) $request->request->get('type', 'person'));
         $name = trim((string) $request->request->get('name'));
@@ -112,7 +122,7 @@ final class AuthController extends AbstractController
         }
         $session?->set('app.auth.token', $data['idToken'] ?? '');
 
-        if (!empty($data['idToken'])) {
+        if (!empty($data['idToken']) && ($_ENV['APP_ENV'] ?? 'prod') === 'dev') {
             @error_log('bearer ' . $data['idToken']);
         }
 
@@ -144,6 +154,13 @@ final class AuthController extends AbstractController
             }
         } elseif ($uid !== '') {
             $this->addFlash('warning', 'Registrado, pero falta configurar FIREBASE_ADMIN_CREDENTIALS_JSON_BASE64 para guardar datos.');
+        }
+
+        // 🔁 Volver a la página previa si existe return_to en sesión
+        $returnTo = (string) ($session?->get('return_to') ?? '');
+        if ($returnTo !== '') {
+            $session?->remove('return_to');
+            return $this->redirect($returnTo);
         }
 
         return $this->redirectToRoute($type === 'company' ? 'app_company_home' : 'app_auth_wait');

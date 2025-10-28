@@ -21,7 +21,6 @@ final class HomeController extends AbstractController
         $session = $request->getSession();
 
         return $this->render('views/home.html.twig', [
-            'authUrl' => AppVariables::URL_AUTH,
             'name' => $session?->get('app.auth.name'),
             'hasToken' => $session?->has('app.auth.token'),
         ]);
@@ -132,10 +131,13 @@ final class HomeController extends AbstractController
 
         $session->set('app.auth.token', $token);
 
+        // Opcional: puedes mantener el flash si quieres, aunque esta vista ya no lo mostrará
         $this->addFlash('success', 'Autenticacion completada correctamente. Bienvenido!');
 
-        return $this->redirectToRoute('app_auth_wait');
+        // 👉 En lugar de redirigir, renderizamos una página mínima
+        return $this->render('views/auth_close.html.twig');
     }
+
 
     #[Route('/autenticacion/cancelar', name: 'app_auth_cancel', methods: ['POST'])]
     public function cancel(Request $request): Response

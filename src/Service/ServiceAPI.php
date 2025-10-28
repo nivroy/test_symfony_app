@@ -14,6 +14,8 @@ interface ServiceInterface {
     public function rotateApiKey(string $idToken, string $oldKeyId): array;
     public function deleteApiKey(string $idToken, string $keyId): array;
     public function validateTicketCode(string $ticketCode, string $code);
+    public function acceptInvitation(string $invitationId, string $idToken);
+    public function rejectInvitation(string $invitationId, string $idToken);
 }
 
 class ServiceAPI implements ServiceInterface
@@ -298,6 +300,49 @@ class ServiceAPI implements ServiceInterface
         ];
     }
 
+     public function acceptInvitation(string $invitationId, string $idToken)
+    {
+        $invitationId = trim($invitationId);
+        if ($invitationId === '') {
+            throw new \RuntimeException('Debe indicar el invitationId a aceptar.');
+        }
+
+        $url = $this->buildUrl('/api/v1/user/connections/intents/' . rawurlencode($invitationId) . '/accept');
+
+        $response = $this->http->request('POST', $url, [
+            'headers' => [
+                'Accept'        => 'application/json',
+                'Content-Type'  => 'application/json',
+                'Authorization' => 'Bearer ' . $idToken,
+            ],
+            'timeout' => 12,
+        ]);
+
+        $data = $this->decodeJsonOrFail($response, 'No se pudo aceptar la invitación.');
+        return $data;
+    }
+
+    public function rejectInvitation(string $invitationId, string $idToken)
+    {
+        $invitationId = trim($invitationId);
+        if ($invitationId === '') {
+            throw new \RuntimeException('Debe indicar el invitationId a rechazar.');
+        }
+
+        $url = $this->buildUrl('/api/v1/user/connections/intents/' . rawurlencode($invitationId) . '/reject');
+
+        $response = $this->http->request('POST', $url, [
+            'headers' => [
+                'Accept'        => 'application/json',
+                'Content-Type'  => 'application/json',
+                'Authorization' => 'Bearer ' . $idToken,
+            ],
+            'timeout' => 12,
+        ]);
+
+        $data = $this->decodeJsonOrFail($response, 'No se pudo rechazar la invitación.');
+        return $data;
+    }
 
     /** ---------- helpers internos ---------- */
 

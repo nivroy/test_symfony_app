@@ -1,0 +1,72 @@
+{# templates/views/auth_close.html.twig #}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Autenticación completada</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      margin: 0; padding: 0;
+      display: grid; place-items: center; min-height: 100dvh;
+      background: canvas; color: canvastext;
+    }
+    .card {
+      max-width: 520px; padding: 24px 20px; margin: 16px;
+      border-radius: 14px; box-shadow: 0 2px 10px rgba(0,0,0,.08);
+      background: #fff; color: #111;
+    }
+    @media (prefers-color-scheme: dark) {
+      .card { background: #1d1f23; color: #eaeaea; box-shadow: none; border: 1px solid #32363e; }
+    }
+    h1 { margin: 0 0 8px; font-size: 1.25rem; }
+    p  { margin: 0 0 10px; line-height: 1.5; }
+    .hint {
+      margin-top: 8px; font-size: .95rem; opacity: .8;
+    }
+    .btn {
+      margin-top: 14px; display: inline-block; padding: 10px 14px;
+      border-radius: 10px; border: none; cursor: pointer; font-weight: 600;
+      background: #0b5ed7; color: #fff;
+    }
+    .btn:active { transform: scale(.98); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Listo ✅</h1>
+    <p>Autenticación completada correctamente.</p>
+    <p><strong>Ya puedes cerrar esta pestaña.</strong></p>
+    <p class="hint" id="auto-close-hint" hidden>
+      Si no se cierra automáticamente, ciérrala manualmente o pulsa el botón:
+    </p>
+    <button class="btn" id="close-btn" hidden>Cerrar pestaña</button>
+  </main>
+
+  <script>
+    (function () {
+      const btn  = document.getElementById('close-btn');
+      const hint = document.getElementById('auto-close-hint');
+
+      // Avísale a la ventana que nos abrió (si existe)
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: 'auth:completed' }, '*');
+        }
+      } catch (_) {}
+
+      // Intento de autocerrar si es popup
+      const closed = window.close();
+      // Algunos navegadores ignoran el valor de retorno; damos un fallback visual
+      setTimeout(function () {
+        // Si seguimos aquí, mostramos el botón e instrucción
+        hint.hidden = false;
+        btn.hidden  = false;
+        btn.addEventListener('click', function () { window.close(); });
+      }, 300);
+    })();
+  </script>
+</body>
+</html>
