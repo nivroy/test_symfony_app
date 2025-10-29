@@ -1,0 +1,52 @@
+{% extends 'base.html.twig' %}
+{% block title %}Invitación{% endblock %}
+
+{% block body %}
+<div style="max-width: 720px; margin: 1.5rem auto;">
+
+  <h1 style="margin-bottom: 1rem;">Gestión de invitación</h1>
+
+  {# Flashes #}
+  {% for label, messages in app.flashes %}
+    {% for message in messages %}
+      <div style="
+        padding:.75rem 1rem; margin:.5rem 0 1rem; border-radius:.5rem;
+        border:1px solid {{ label == 'success' ? '#16a34a' : '#e11d48' }};
+        background: {{ label == 'success' ? '#ecfdf5' : '#fef2f2' }};
+        color: {{ label == 'success' ? '#065f46' : '#991b1b' }};
+      ">{{ message }}</div>
+    {% endfor %}
+  {% endfor %}
+
+  <div style="display:grid; gap:.5rem; margin-bottom: 1rem; color:#374151;">
+    <div>UID del usuario logueado: <code style="color:#1f2937;">{{ uid }}</code></div>
+    <div>ID de la invitación: <code style="color:#1f2937;">{{ invitationId }}</code></div>
+  </div>
+
+  <p style="margin:.25rem 0 1rem; color:#374151;">
+    Puedes aceptar o rechazar la invitación.
+  </p>
+
+  <div style="display:flex; gap:.75rem; align-items:center;">
+    <form method="POST" action="{{ path('app_invitation_accept', { invitationId: invitationId }) }}" style="display:inline;">
+      <button type="submit"
+              style="padding:.6rem 1rem; background:#16a34a; color:#fff; border:none; border-radius:.5rem; cursor:pointer;">
+        Aceptar
+      </button>
+    </form>
+
+    <form method="POST" action="{{ path('app_invitation_reject', { invitationId: invitationId }) }}" style="display:inline;">
+      <button type="submit"
+              style="padding:.6rem 1rem; background:#e11d48; color:#fff; border:none; border-radius:.5rem; cursor:pointer;">
+        Rechazar
+      </button>
+    </form>
+
+    <a href="{{ path('app_home') }}"
+       style="padding:.6rem 1rem; background:#e5e7eb; color:#111827; text-decoration:none; border:none; border-radius:.5rem; cursor:pointer;">
+      Volver
+    </a>
+  </div>
+
+</div>
+{% endblock %}

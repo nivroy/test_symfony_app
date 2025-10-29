@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>{% block title %}Demo Symfony{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="/assets/styles.css">
+    {% block styles %}{% endblock %}
+</head>
+<body>
+<header class="site-header">
+    <div class="container header-inner">
+        <a class="brand" href="{{ path('app_home') }}">Demo</a>
+        <nav class="nav">
+            <a href="{{ path('app_home') }}">Inicio</a>
+        </nav>
+    </div>
+    {% if app.environment is defined and app.environment == 'dev' %}
+        <div class="env-badge">DEV</div>
+    {% endif %}
+    {% set errorMessages = app.flashes('error') %}
+    {% if errorMessages is not empty %}
+        <div class="modal-overlay" data-modal>
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+                <h2 id="modal-title">Ocurrió un error</h2>
+                <ul class="modal-messages">
+                    {% for message in errorMessages %}
+                        <li>{{ message }}</li>
+                    {% endfor %}
+                </ul>
+                <div class="modal-actions"><button class="btn primary" data-close-modal>Cerrar</button></div>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if app.flashes is not empty %}
+        <div class="flash-container container">
+            {% for label, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="flash {{ label }}" role="status">{{ message }}</div>
+                {% endfor %}
+            {% endfor %}
+        </div>
+    {% endif %}
+</header>
+
+<main class="container page">
+    {% block body %}{% endblock %}
+    <div class="page-spacer" aria-hidden="true"></div>
+    <footer class="site-footer">
+        <p>Hecho con Symfony · Minimal UI</p>
+    </footer>
+</main>
+
+<script src="/assets/alert.js" defer></script>
+</body>
+</html>
+

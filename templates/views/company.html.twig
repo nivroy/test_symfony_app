@@ -1,0 +1,307 @@
+﻿{% extends 'base.html.twig' %}
+
+{% block title %}
+  Panel de empresa · Demo Symfony
+{% endblock %}
+
+{% block body %}
+<div class="card">
+  <!-- === Botón Crear API Key === -->
+  <div class="parent-container">
+    <div class="token-actions">
+      <button id="create-apikey" class="icon-btn" title="Crear API Key" aria-label="Crear API Key">
+        Crear ApiKey
+      </button>
+    </div>
+  </div>
+
+  <h1>Tus APIs Key</h1>
+
+  {% if companyName or ruc %}
+    <p>
+      <strong>{{ companyName }}</strong>
+      {% if ruc %} · RUC: {{ ruc }} {% endif %}
+    </p>
+  {% endif %}
+
+  <!-- === Listado de API Keys === -->
+  {% if apiKeys is not empty %}
+    <ul id="apikey-list">
+      {% for key in apiKeys %}
+        {% set keyId = key.keyId ?? '' %}
+        <li class="token-box" data-key-id="{{ keyId }}">
+          <code>{{ keyId|slice(0, 8) ~ '****' }}</code>
+          <div class="token-actions">
+            <button class="icon-btn refresh-apikey" title="Rotar API Key">Rotar</button>
+            <button class="icon-btn delete-apikey" title="Eliminar API Key">Borrar</button>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p id="no-keys-msg">No hay API Keys registradas.</p>
+  {% endif %}
+
+  <div class="actions">
+    <a class="btn" href="{{ path('app_home') }}">Volver al inicio</a>
+  </div>
+</div>
+
+<!-- === Tokens CSRF === -->
+<meta name="csrf-token-create" content="{{ csrf_token('company_apikey_create') }}"/>
+<meta name="csrf-token-rotate" content="{{ csrf_token('company_apikey_rotate') }}"/>
+<meta name="csrf-token-delete" content="{{ csrf_token('company_apikey_delete') }}"/>
+
+<!-- === Estilos === -->
+<style>
+  .parent-container {
+    display: flex; justify-content: flex-end; margin-bottom: 1rem;
+  }
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.4); z-index: 1000; backdrop-filter: blur(3px);
+  }
+  .modal-content {
+    background: #fff; padding: 2rem; border-radius: 0.8rem;
+    max-width: 420px; width: 90%; text-align: center;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.25); animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-10px);} to{opacity:1;transform:translateY(0);} }
+  .modal-content h2 { margin-bottom: .5rem; color: #0b5ed7; }
+  .modal-content p { margin-bottom: 1.2rem; color: #444; }
+  .modal-actions { margin-top: 1rem; text-align: center; }
+
+  .btn {
+    background: #0b5ed7; color:#fff; border:none; padding:.6rem 1.2rem;
+    border-radius:.5rem; cursor:pointer; font-size:1rem; transition: background .2s ease;
+  }
+  .btn:hover { background:#084cb4; }
+
+  .token-box {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:.5rem; margin:.5rem 0 1rem; padding:.5rem .75rem;
+    border:1px solid #e3e5e8; border-radius:.5rem;
+    background: linear-gradient(180deg, #f9fbff, #f2f6ff);
+  }
+  .token-box code {
+    display:block; flex:1 1 auto; min-width:0;
+    font-size:1.1rem; font-weight:700; padding:.25rem .5rem;
+    color:#0b5ed7; background:#fff; border:1px solid #cfe2ff; border-radius:.35rem;
+    min-width:10ch; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .modal-content .token-box code {
+    white-space: nowrap; overflow-x:auto; overflow-y:hidden; text-overflow:clip; max-width:100%; display:block;
+  }
+  .token-actions { display:flex; align-items:center; gap:.4rem; flex:0 0 auto; }
+  .icon-btn {
+    display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid #d0d4da; background:#fff; color:#0b5ed7;
+    border-radius:.45rem; padding:.45rem .6rem; cursor:pointer;
+    transition: background .15s ease, transform .05s ease;
+  }
+  .icon-btn:hover { background:#eef5ff; }
+  .icon-btn[disabled]{ opacity:.6; cursor:not-allowed; }
+
+  .actions { margin-top: 1rem; text-align:center; }
+</style>
+
+<!-- === Scripts === -->
+<script>
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise((resolve, reject) => {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.top='-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy') ? resolve() : reject(); }
+      catch (e) { reject(e); }
+      finally { document.body.removeChild(ta); }
+    });
+  }
+
+  // Mostrar modal inicial si viene desde el servidor
+  document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('apikey-modal');
+    if (modal) modal.style.display = 'flex';
+  });
+
+  // Delegación de eventos del modal (copiar/cerrar)
+  document.addEventListener('click', (e) => {
+    if (e.target.matches('#copy-apikey')) {
+      const codeEl = e.target.closest('.token-box')?.querySelector('code');
+      if (codeEl) {
+        copyTextToClipboard(codeEl.textContent.trim())
+          .then(() => { e.target.textContent = 'Copiado'; setTimeout(() => e.target.textContent = 'Copiar', 1000); })
+          .catch(() => alert('No se pudo copiar la API Key'));
+      }
+    }
+    if (e.target.matches('#close-modal')) {
+      e.target.closest('.modal-overlay')?.remove();
+    }
+  });
+
+  // === Crear API Key ===
+  (() => {
+    const cbtn = document.getElementById('create-apikey');
+    if (!cbtn) return;
+
+    cbtn.addEventListener('click', () => {
+      const csrf = document.querySelector('meta[name="csrf-token-create"]').content;
+      cbtn.disabled = true;
+
+      fetch('{{ path('app_api_company_apikey_create') }}', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: new URLSearchParams({ _token: csrf })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data?.apiKey && data?.keyId) {
+          // Modal con la nueva apiKey
+          const modal = document.createElement('div');
+          modal.className = 'modal-overlay'; modal.style.display = 'flex';
+          modal.innerHTML = `
+            <div class="modal-content">
+              <h2>Se generó una nueva API Key</h2>
+              <p>Cópiala ahora; se mostrará solo una vez.</p>
+              <div class="token-box">
+                <code id="company-apikey">${data.apiKey}</code>
+                <div class="token-actions"><button id="copy-apikey" class="icon-btn">Copiar</button></div>
+              </div>
+              <div class="modal-actions"><button id="close-modal" class="btn">Cerrar</button></div>
+            </div>`;
+          document.body.appendChild(modal);
+
+          // Agregar item en la lista
+          const listContainer = document.querySelector('#apikey-list');
+          const newItem = document.createElement('li');
+          newItem.className = 'token-box';
+          newItem.dataset.keyId = data.keyId; // keyId real para acciones
+          const masked = data.keyId.length >= 8 ? `${data.keyId.slice(0,8)}****` : `${data.keyId}****`;
+          newItem.innerHTML = `
+            <code>${masked}</code>
+            <div class="token-actions">
+              <button class="icon-btn refresh-apikey" title="Rotar API Key">Rotar</button>
+              <button class="icon-btn delete-apikey" title="Eliminar API Key">Borrar</button>
+            </div>`;
+
+          if (listContainer) {
+            listContainer.prepend(newItem);
+          } else {
+            const newList = document.createElement('ul');
+            newList.id = 'apikey-list';
+            newList.appendChild(newItem);
+            document.querySelector('.card').appendChild(newList);
+            document.getElementById('no-keys-msg')?.remove();
+          }
+        } else {
+          alert('No se pudo crear la API Key.');
+        }
+      })
+      .catch(() => alert('Error al crear la API Key.'))
+      .finally(() => { cbtn.disabled = false; });
+    });
+  })();
+
+  // === Rotar API Key (cambia apiKey, NO el keyId) ===
+  document.addEventListener('click', (e) => {
+    if (!e.target.classList.contains('refresh-apikey')) return;
+
+    const btn = e.target;
+    const box = btn.closest('.token-box');
+    const keyId = box?.dataset?.keyId || '';
+    if (!keyId) return alert('No se encontró el Key ID a rotar.');
+
+    const csrf = document.querySelector('meta[name="csrf-token-rotate"]')?.content ?? '';
+    if (!csrf) return alert('Falta token CSRF para rotación.');
+
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = 'Rotando…';
+
+    fetch('{{ path('app_api_company_apikey_rotate') }}', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ _token: csrf, oldKeyId: keyId })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data?.success && data?.apiKey) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay'; modal.style.display = 'flex';
+        modal.innerHTML = `
+          <div class="modal-content">
+            <h2>API Key rotada</h2>
+            <p>Cópiala ahora; se mostrará solo una vez.</p>
+            <div class="token-box">
+              <code id="company-apikey">${data.apiKey}</code>
+              <div class="token-actions"><button id="copy-apikey" class="icon-btn">Copiar</button></div>
+            </div>
+            <div class="hint">
+              Key ID: <strong>${keyId}</strong>
+              ${data.secretVersion != null ? ` · Secret v${data.secretVersion}` : ''}
+            </div>
+            <div class="modal-actions"><button id="close-modal" class="btn">Cerrar</button></div>
+          </div>`;
+        document.body.appendChild(modal);
+      } else {
+        alert(data?.error || 'No se pudo rotar la API Key.');
+      }
+    })
+    .catch(() => alert('Error al rotar la API Key.'))
+    .finally(() => { btn.disabled = false; btn.textContent = originalText; });
+  });
+
+  // === Eliminar API Key ===
+  document.addEventListener('click', (e) => {
+    if (!e.target.classList.contains('delete-apikey')) return;
+
+    const btn = e.target;
+    const box = btn.closest('.token-box');
+    const keyId = box?.dataset?.keyId || '';
+    if (!keyId) return alert('No se encontró el Key ID a eliminar.');
+
+    if (!confirm('¿Seguro que deseas eliminar esta API Key? Esta acción no se puede deshacer.')) return;
+
+    const csrf = document.querySelector('meta[name="csrf-token-delete"]')?.content ?? '';
+    if (!csrf) return alert('Falta token CSRF para eliminación.');
+
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = 'Eliminando…';
+
+    fetch('{{ path('app_api_company_apikey_delete') }}', {
+      method: 'POST', // podrías usar DELETE si lo deseas
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ _token: csrf, keyId })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data?.success) {
+        box.style.transition = 'opacity 0.3s ease';
+        box.style.opacity = '0';
+        setTimeout(() => {
+          const list = box.parentElement;
+          box.remove();
+          if (list && list.children.length === 0) {
+            const p = document.createElement('p');
+            p.id = 'no-keys-msg';
+            p.textContent = 'No hay API Keys registradas.';
+            document.querySelector('.card').appendChild(p);
+          }
+        }, 300);
+      } else {
+        alert(data?.error || 'No se pudo eliminar la API Key.');
+      }
+    })
+    .catch(() => alert('Error al eliminar la API Key.'))
+    .finally(() => { btn.disabled = false; btn.textContent = originalText; });
+  });
+</script>
+{% endblock %}

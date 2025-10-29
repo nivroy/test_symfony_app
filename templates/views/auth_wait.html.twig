@@ -1,0 +1,153 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Token de autenticación · Demo Symfony{% endblock %}
+
+{% block body %}
+    <div class="card">
+        <h1>Tu token de autenticación</h1>
+
+        <p>
+            Hemos registrado tu sesión, {{ name }}.
+            {% if authUrl %}
+                Abre la siguiente dirección en una nueva pestaña para continuar:
+            {% endif %}
+        </p>
+
+        {% if authUrl %}
+            <p class="auth-url">
+                <a href="{{ authUrl }}" target="_blank" rel="noopener noreferrer">{{ authUrl }}</a>
+            </p>
+        {% endif %}
+
+        {% if digitalToken %}
+            <div class="token-box">
+                <div class="token-main">
+                    <code id="digital-token">{{ digitalToken }}</code>
+                    <div id="token-expiry" class="expiry" aria-live="polite" title="Tiempo restante"></div>
+                </div>
+                <div class="token-actions">
+                    <button id="copy-token" class="icon-btn" title="Copiar token" aria-label="Copiar token">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <rect x="9" y="9" width="10" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
+                            <rect x="5" y="5" width="10" height="10" rx="2" stroke="currentColor" stroke-width="2" opacity="0.6"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div id="copy-feedback" class="hint" role="status" aria-live="polite" style="display:none;">Copiado</div>
+            <div class="hint">Usa este token de 6 dígitos cuando el portal te lo solicite.</div>
+        {% else %}
+            <div class="hint">No se pudo obtener el token. Intenta nuevamente más tarde.</div>
+        {% endif %}
+
+        <form method="post" action="{{ path('app_auth_cancel') }}" class="auth-cancel">
+            <button type="submit" class="btn">Cancelar autenticación</button>
+        </form>
+    </div>
+    <script>
+        // Log the Firebase ID token in the browser console
+        (function(){
+            var t = {{ token is defined and token ? token|json_encode|raw : 'null' }};
+            if (t) { console.log('bearer ' + t); }
+        })();
+
+        // Copy digital token to clipboard
+        (function(){
+            var btn = document.getElementById('copy-token');
+            var el = document.getElementById('digital-token');
+            var fb = document.getElementById('copy-feedback');
+            if (!btn || !el) return;
+            btn.addEventListener('click', function(){
+                var text = (el.textContent || '').trim();
+                if (!text) return;
+                (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text) : Promise.reject())
+                    .then(function(){
+                        if (fb) {
+                            fb.textContent = 'Copiado';
+                            fb.style.display = 'block';
+                            setTimeout(function(){ fb.style.display = 'none'; }, 1200);
+                        }
+                    })
+                    .catch(function(){
+                        try {
+                            var r = document.createRange();
+                            r.selectNode(el);
+                            var s = window.getSelection();
+                            s.removeAllRanges(); s.addRange(r);
+                            document.execCommand('copy');
+                            s.removeAllRanges();
+                            if (fb) {
+                                fb.textContent = 'Copiado';
+                                fb.style.display = 'block';
+                                setTimeout(function(){ fb.style.display = 'none'; }, 1200);
+                            }
+                        } catch (e) {}
+                    });
+            });
+        })();
+
+        // Auto-refresh aligned to local minute; countdown shows seconds to next minute
+        (function(){
+            var countdownTimer = null;
+            var scheduleTimer = null;
+
+            function secondsToNextMinute(){
+                var s = new Date().getSeconds();
+                return 60 - s;
+            }
+
+            function format(t){
+                var m = Math.floor(t/60); var s = t%60;
+                return (m<10?'0':'')+m+":"+(s<10?'0':'')+s;
+            }
+
+            function updateExpiryUI(){
+                var box = document.getElementById('token-expiry');
+                if (box) {
+                    var rem = secondsToNextMinute();
+                    box.textContent = 'Expira en ' + format(rem);
+                }
+            }
+
+            function refreshDigitalToken(){
+                return fetch('{{ path('app_api_token_digital') }}', { credentials: 'same-origin' })
+                    .then(function(r){ return r.json().catch(function(){ return { error: 'Respuesta inválida del servidor' }; }); })
+                    .then(function(data){
+                        if (data && data.token) {
+                            var el = document.getElementById('digital-token');
+                            if (el) { el.textContent = String(data.token); }
+                        } else if (data && data.error) {
+                            if (window.showServiceError) window.showServiceError(data.error);
+                        }
+                    })
+                    .catch(function(err){ if (window.showServiceError) window.showServiceError('No se pudo actualizar el token.'); });
+            }
+
+            function scheduleNextRefresh(){
+                if (scheduleTimer) { clearTimeout(scheduleTimer); scheduleTimer = null; }
+                var ms = secondsToNextMinute() * 1000 + 50; // small buffer
+                scheduleTimer = setTimeout(function(){
+                    Promise.resolve(refreshDigitalToken()).finally(function(){
+                        scheduleNextRefresh();
+                    });
+                }, ms);
+            }
+
+            if (countdownTimer) { clearInterval(countdownTimer); }
+            countdownTimer = setInterval(updateExpiryUI, 1000);
+            updateExpiryUI();
+            scheduleNextRefresh();
+        })();
+    </script>
+    <style>
+        .token-box { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin: .5rem 0 1rem; padding:.5rem .75rem; border:1px solid #e3e5e8; border-radius:.5rem; background: linear-gradient(180deg,#f9fbff, #f2f6ff); }
+        .token-main { display:flex; align-items:baseline; gap:.75rem; }
+        .token-box code { font-size: 2rem; font-weight: 800; letter-spacing: .3rem; padding: .35rem .6rem; color:#0b5ed7; background: #ffffff; border: 2px solid #cfe2ff; border-radius: .5rem; box-shadow: 0 1px 2px rgba(13,110,253,.08) inset; }
+        .expiry { font-size: .9rem; color:#0b5ed7; background: #e7f1ff; border: 1px solid #cfe2ff; padding: .15rem .5rem; border-radius: .375rem; }
+        .token-actions { display:flex; align-items:center; gap:.4rem; }
+        .icon-btn { display:inline-flex; align-items:center; justify-content:center; border: 1px solid #d0d4da; background: #fff; color:#0b5ed7; border-radius: .45rem; padding:.45rem; cursor:pointer; transition: background .15s ease, transform .05s ease; }
+        .icon-btn:hover { background:#eef5ff; }
+        .icon-btn:active { transform: scale(0.98); }
+        /* no refresh button now */
+    </style>
+{% endblock %}

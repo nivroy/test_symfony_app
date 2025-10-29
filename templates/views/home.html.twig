@@ -1,0 +1,45 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Iniciar sesión · Demo Symfony{% endblock %}
+
+{% block body %}
+    <div class="card auth-card">
+        <h1 class="visually-hidden">Acceso a la aplicación</h1>
+
+        <section id="panel-login" aria-label="Iniciar sesión">
+            <form method="post" action="{{ path('app_auth_login') }}" class="auth-form">
+                <div class="field">
+                    <label for="login-email" class="label">Correo</label>
+                    <input type="email" id="login-email" name="email" class="input" autocomplete="email" placeholder="tu@correo.com" required>
+                </div>
+
+                <div class="field">
+                    <label for="login-password" class="label">Contraseña</label>
+                    <input type="password" id="login-password" name="password" class="input" autocomplete="current-password" required>
+                </div>
+
+                <button type="submit" class="btn primary full">Entrar</button>
+            </form>
+        </section>
+
+        <div class="actions" style="margin-top:1rem; justify-content:space-between;">
+            <a class="btn" href="{{ path('app_register_index') }}">Crear cuenta</a>
+        </div>
+    </div>
+
+    <script>
+        // Scroll/focus to login when clicking the bottom button
+        (function(){
+            var btn = document.getElementById('go-login');
+            var email = document.getElementById('login-email');
+            var panel = document.getElementById('panel-login');
+            if (btn) {
+                btn.addEventListener('click', function(){
+                    if (panel && panel.scrollIntoView) { panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+                    if (email) { setTimeout(function(){ email.focus(); }, 250); }
+                });
+            }
+        })();
+    </script>
+{% endblock %}
+
