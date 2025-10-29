@@ -21,7 +21,7 @@ interface ServiceInterface {
 class ServiceAPI implements ServiceInterface
 {
     public function __construct(
-        #[Autowire(env: 'API_BASE_URL')] private readonly string $baseUrl,
+        #[Autowire(env: 'BASE_URL_API')] private readonly string $baseUrl,
         #[Autowire(env: 'API_COMPANY_ID')] private readonly ?string $defaultCompanyId = null,
         private readonly HttpClientInterface $http,
     ) {}
@@ -30,7 +30,7 @@ class ServiceAPI implements ServiceInterface
     {
         $base = $this->baseUrl !== '' ? rtrim($this->baseUrl, '/') : 'http://localhost:8000';
         if (!\preg_match('#^https?://#i', $base)) {
-            throw new \RuntimeException('API_BASE_URL debe incluir esquema http/https.');
+            throw new \RuntimeException('BASE_URL_API debe incluir esquema http/https.');
         }
         $url = $base . $path;
         if ($query) {
