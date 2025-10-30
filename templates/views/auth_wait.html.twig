@@ -6,18 +6,7 @@
     <div class="card">
         <h1>Tu token de autenticación</h1>
 
-        <p>
-            Hemos registrado tu sesión, {{ name }}.
-            {% if authUrl %}
-                Abre la siguiente dirección en una nueva pestaña para continuar:
-            {% endif %}
-        </p>
-
-        {% if authUrl %}
-            <p class="auth-url">
-                <a href="{{ authUrl }}" target="_blank" rel="noopener noreferrer">{{ authUrl }}</a>
-            </p>
-        {% endif %}
+        <p>Hemos registrado tu sesión, {{ name }}.</p>
 
         <div id="digital-token-wrapper">
             <div id="digital-token-container" class="token-list">

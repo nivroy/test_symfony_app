@@ -28,7 +28,7 @@ final class InvitationController extends AbstractController
         return $this->redirectToRoute('app_home'); // tu ruta de login
     }
 
-    #[Route('/invitation/{invitationId}', name: 'app_invitation', methods: ['GET'])]
+    #[Route('/invitation/{invitationId}', name: 'app_invitation', methods: ['GET'], requirements: ['invitationId' => '(?!accepted$)[^/]+'])]
     public function invitation(string $invitationId, Request $request): Response
     {
         if (!$this->isLoggedIn($request)) {
@@ -52,9 +52,14 @@ final class InvitationController extends AbstractController
             return $this->redirectToLogin($request);
         }
         $idToken = (string) ($session->get('app.auth.id_token') ?? '');
-        $this->api->acceptInvitation($invitationId, $idToken);
+        $data = $this->api->acceptInvitation($invitationId, $idToken);
 
-        $this->addFlash('success', 'Invitación aceptada (pendiente de implementación).');
+        $status = isset($data['status']) && is_scalar($data['status']) ? strtoupper((string)$data['status']) : null;
+        if ($status === 'ACTIVE') {
+            return $this->redirectToRoute('app_invitation_accepted');
+        }
+
+        $this->addFlash('error', 'No se pudo aceptar la invitación.');
         return $this->redirectToRoute('app_invitation', ['invitationId' => $invitationId]);
     }
 
@@ -65,12 +70,18 @@ final class InvitationController extends AbstractController
         if (!$this->isLoggedIn($request)) {
             return $this->redirectToLogin($request);
         }
-        
+
         $idToken = (string) ($session->get('app.auth.id_token') ?? '');
-        
+
         $this->api->rejectInvitation($invitationId, $idToken);
 
         $this->addFlash('success', 'Invitación rechazada (pendiente de implementación).');
         return $this->redirectToRoute('app_invitation', ['invitationId' => $invitationId]);
+    }
+
+    #[Route('/invitation/accepted', name: 'app_invitation_accepted', methods: ['GET'], priority: 10)]
+    public function accepted(): Response
+    {
+        return $this->render('views/invitation_accepted.html.twig');
     }
 }
