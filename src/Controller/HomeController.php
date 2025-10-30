@@ -67,9 +67,16 @@ final class HomeController extends AbstractController
         }
 
         $idToken = (string) ($session->get('app.auth.id_token') ?? $session->get('app.auth.token') ?? '');
-        $digitalToken = null;
+        $digitalTokens = [];
         try {
-            $digitalToken = $this->api->fetchDigitalToken($idToken);
+            $tokensResult = $this->fetchActiveCompanyTokens($idToken);
+            foreach ($tokensResult['errors'] as $error) {
+                $this->addFlash('error', 'No se pudo obtener el token digital para la empresa ' . $error['companyId'] . '. ' . $error['message']);
+            }
+            $digitalTokens = $tokensResult['tokens'];
+            if ($tokensResult['totalActiveConnections'] === 0) {
+                $this->addFlash('info', 'No hay empresas activas asociadas a tu usuario.');
+            }
         } catch (\Throwable $e) {
             $this->addFlash('error', $e->getMessage());
         }
@@ -79,7 +86,7 @@ final class HomeController extends AbstractController
             'name' => $session->get('app.auth.email') ?? $session->get('app.auth.name') ?? 'Usuario',
             'code' => $session->get('app.auth.code') ?? null,
             'token' => $session->get('app.auth.token'),
-            'digitalToken' => $digitalToken,
+            'digitalTokens' => $digitalTokens,
         ]);
     }
 
@@ -172,10 +179,51 @@ final class HomeController extends AbstractController
 
         $idToken = (string) ($session->get('app.auth.id_token') ?? $session->get('app.auth.token') ?? '');
         try {
-            $digitalToken = $this->api->fetchDigitalToken($idToken);
-            return new JsonResponse(['token' => $digitalToken]);
+            $tokensResult = $this->fetchActiveCompanyTokens($idToken);
+            return new JsonResponse([
+                'tokens' => $tokensResult['tokens'],
+                'errors' => $tokensResult['errors'],
+                'totalActiveConnections' => $tokensResult['totalActiveConnections'],
+            ]);
         } catch (\Throwable $e) {
             return new JsonResponse(['error' => $e->getMessage()], 502);
         }
+    }
+
+    /**
+     * @return array{tokens: list<array{companyId:string, connectionId:string, token:string, intentType:?string, scopes:array<int,string>}>, errors: list<array{companyId:string, connectionId:string, message:string}>, totalActiveConnections:int}
+     */
+    private function fetchActiveCompanyTokens(string $idToken): array
+    {
+        $connections = $this->api->getActiveUserConnections($idToken);
+
+        $tokens = [];
+        $errors = [];
+
+        foreach ($connections as $connection) {
+            $companyId = $connection['companyId'];
+            try {
+                $tokenValue = $this->api->fetchDigitalToken($idToken, $companyId);
+                $tokens[] = [
+                    'companyId' => $companyId,
+                    'connectionId' => $connection['id'],
+                    'token' => $tokenValue,
+                    'intentType' => $connection['intentType'],
+                    'scopes' => $connection['scopes'],
+                ];
+            } catch (\Throwable $e) {
+                $errors[] = [
+                    'companyId' => $companyId,
+                    'connectionId' => $connection['id'],
+                    'message' => $e->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'tokens' => $tokens,
+            'errors' => $errors,
+            'totalActiveConnections' => \count($connections),
+        ];
     }
 }

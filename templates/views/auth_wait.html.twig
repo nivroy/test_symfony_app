@@ -19,26 +19,41 @@
             </p>
         {% endif %}
 
-        {% if digitalToken %}
-            <div class="token-box">
-                <div class="token-main">
-                    <code id="digital-token">{{ digitalToken }}</code>
-                    <div id="token-expiry" class="expiry" aria-live="polite" title="Tiempo restante"></div>
-                </div>
-                <div class="token-actions">
-                    <button id="copy-token" class="icon-btn" title="Copiar token" aria-label="Copiar token">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                            <rect x="9" y="9" width="10" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
-                            <rect x="5" y="5" width="10" height="10" rx="2" stroke="currentColor" stroke-width="2" opacity="0.6"/>
-                        </svg>
-                    </button>
-                </div>
+        <div id="digital-token-wrapper">
+            <div id="digital-token-container" class="token-list">
+                {% for entry in digitalTokens %}
+                    <div class="token-item" data-company-id="{{ entry.companyId }}" data-connection-id="{{ entry.connectionId }}">
+                        <div class="token-meta">
+                            <span class="token-company">{{ entry.companyId }}</span>
+                            {% if entry.intentType %}
+                                <span class="token-intent">{{ entry.intentType }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="token-box">
+                            <div class="token-main">
+                                <code class="digital-token">{{ entry.token }}</code>
+                                <div class="expiry" aria-live="polite" title="Tiempo restante"></div>
+                            </div>
+                            <div class="token-actions">
+                                <button class="icon-btn copy-token" type="button" title="Copiar token" aria-label="Copiar token para {{ entry.companyId }}">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <rect x="9" y="9" width="10" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
+                                        <rect x="5" y="5" width="10" height="10" rx="2" stroke="currentColor" stroke-width="2" opacity="0.6"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="copy-feedback hint" role="status" aria-live="polite">Copiado</div>
+                    </div>
+                {% endfor %}
             </div>
-            <div id="copy-feedback" class="hint" role="status" aria-live="polite" style="display:none;">Copiado</div>
-            <div class="hint">Usa este token de 6 dígitos cuando el portal te lo solicite.</div>
-        {% else %}
-            <div class="hint">No se pudo obtener el token. Intenta nuevamente más tarde.</div>
-        {% endif %}
+            <div id="digital-token-empty" class="hint" {% if digitalTokens %}style="display:none;"{% endif %}>
+                No se encontraron tokens disponibles. Verifica tus conexiones activas en el portal.
+            </div>
+            <div id="digital-token-note" class="hint" {% if not digitalTokens %}style="display:none;"{% endif %}>
+                Cada token corresponde a una empresa activa vinculada a tu cuenta.
+            </div>
+        </div>
 
         <form method="post" action="{{ path('app_auth_cancel') }}" class="auth-cancel">
             <button type="submit" class="btn">Cancelar autenticación</button>
@@ -51,45 +66,142 @@
             if (t) { console.log('bearer ' + t); }
         })();
 
-        // Copy digital token to clipboard
         (function(){
-            var btn = document.getElementById('copy-token');
-            var el = document.getElementById('digital-token');
-            var fb = document.getElementById('copy-feedback');
-            if (!btn || !el) return;
-            btn.addEventListener('click', function(){
-                var text = (el.textContent || '').trim();
-                if (!text) return;
-                (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text) : Promise.reject())
-                    .then(function(){
-                        if (fb) {
-                            fb.textContent = 'Copiado';
-                            fb.style.display = 'block';
-                            setTimeout(function(){ fb.style.display = 'none'; }, 1200);
+            var container = document.getElementById('digital-token-container');
+            var emptyMessage = document.getElementById('digital-token-empty');
+            var noteMessage = document.getElementById('digital-token-note');
+            if (!container) { return; }
+
+            var svgIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" stroke="currentColor" stroke-width="2"></rect><rect x="5" y="5" width="10" height="10" rx="2" stroke="currentColor" stroke-width="2" opacity="0.6"></rect></svg>';
+            var countdownTimer = null;
+            var refreshTimer = null;
+
+            function buildTokenItem(token) {
+                var item = document.createElement('div');
+                item.className = 'token-item';
+                item.dataset.companyId = token.companyId || '';
+                item.dataset.connectionId = token.connectionId || '';
+
+                var meta = document.createElement('div');
+                meta.className = 'token-meta';
+                var company = document.createElement('span');
+                company.className = 'token-company';
+                company.textContent = token.companyId || 'Empresa';
+                meta.appendChild(company);
+                if (token.intentType) {
+                    var intent = document.createElement('span');
+                    intent.className = 'token-intent';
+                    intent.textContent = String(token.intentType);
+                    meta.appendChild(intent);
+                }
+                item.appendChild(meta);
+
+                var box = document.createElement('div');
+                box.className = 'token-box';
+
+                var main = document.createElement('div');
+                main.className = 'token-main';
+                var code = document.createElement('code');
+                code.className = 'digital-token';
+                code.textContent = token.token || '';
+                main.appendChild(code);
+
+                var expiry = document.createElement('div');
+                expiry.className = 'expiry';
+                expiry.setAttribute('aria-live', 'polite');
+                expiry.setAttribute('title', 'Tiempo restante');
+                main.appendChild(expiry);
+
+                box.appendChild(main);
+
+                var actions = document.createElement('div');
+                actions.className = 'token-actions';
+                var button = document.createElement('button');
+                button.className = 'icon-btn copy-token';
+                button.type = 'button';
+                button.title = 'Copiar token';
+                button.setAttribute('aria-label', 'Copiar token para ' + (token.companyId || 'empresa'));
+                button.innerHTML = svgIcon;
+                actions.appendChild(button);
+
+                box.appendChild(actions);
+                item.appendChild(box);
+
+                var feedback = document.createElement('div');
+                feedback.className = 'copy-feedback hint';
+                feedback.setAttribute('role', 'status');
+                feedback.setAttribute('aria-live', 'polite');
+                feedback.style.display = 'none';
+                feedback.textContent = 'Copiado';
+                item.appendChild(feedback);
+
+                return item;
+            }
+
+            function renderTokens(tokens) {
+                container.innerHTML = '';
+                if (!Array.isArray(tokens) || tokens.length === 0) {
+                    if (emptyMessage) { emptyMessage.style.display = ''; }
+                    if (noteMessage) { noteMessage.style.display = 'none'; }
+                    return;
+                }
+
+                var fragment = document.createDocumentFragment();
+                tokens.forEach(function(token) {
+                    fragment.appendChild(buildTokenItem(token));
+                });
+                container.appendChild(fragment);
+
+                if (emptyMessage) { emptyMessage.style.display = 'none'; }
+                if (noteMessage) { noteMessage.style.display = ''; }
+            }
+
+            function copyText(text) {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    return navigator.clipboard.writeText(text);
+                }
+                return new Promise(function(resolve, reject) {
+                    try {
+                        var temp = document.createElement('textarea');
+                        temp.style.position = 'fixed';
+                        temp.style.opacity = '0';
+                        temp.value = text;
+                        document.body.appendChild(temp);
+                        temp.focus();
+                        temp.select();
+                        var ok = document.execCommand('copy');
+                        document.body.removeChild(temp);
+                        ok ? resolve() : reject(new Error('copy-command-failed'));
+                    } catch (err) {
+                        reject(err);
+                    }
+                });
+            }
+
+            container.addEventListener('click', function(event) {
+                var button = event.target.closest('.copy-token');
+                if (!button) { return; }
+                var item = button.closest('.token-item');
+                if (!item) { return; }
+                var code = item.querySelector('.digital-token');
+                if (!code) { return; }
+                var text = (code.textContent || '').trim();
+                if (!text) { return; }
+
+                copyText(text)
+                    .then(function() {
+                        var feedback = item.querySelector('.copy-feedback');
+                        if (feedback) {
+                            feedback.style.display = 'block';
+                            setTimeout(function() { feedback.style.display = 'none'; }, 1200);
                         }
                     })
-                    .catch(function(){
-                        try {
-                            var r = document.createRange();
-                            r.selectNode(el);
-                            var s = window.getSelection();
-                            s.removeAllRanges(); s.addRange(r);
-                            document.execCommand('copy');
-                            s.removeAllRanges();
-                            if (fb) {
-                                fb.textContent = 'Copiado';
-                                fb.style.display = 'block';
-                                setTimeout(function(){ fb.style.display = 'none'; }, 1200);
-                            }
-                        } catch (e) {}
+                    .catch(function() {
+                        if (window.showServiceError) {
+                            window.showServiceError('No se pudo copiar el token.');
+                        }
                     });
             });
-        })();
-
-        // Auto-refresh aligned to local minute; countdown shows seconds to next minute
-        (function(){
-            var countdownTimer = null;
-            var scheduleTimer = null;
 
             function secondsToNextMinute(){
                 var s = new Date().getSeconds();
@@ -102,34 +214,40 @@
             }
 
             function updateExpiryUI(){
-                var box = document.getElementById('token-expiry');
-                if (box) {
-                    var rem = secondsToNextMinute();
-                    box.textContent = 'Expira en ' + format(rem);
-                }
+                var rem = secondsToNextMinute();
+                container.querySelectorAll('.expiry').forEach(function(node){
+                    node.textContent = 'Expira en ' + format(rem);
+                });
             }
 
-            function refreshDigitalToken(){
+            function refreshDigitalTokens(){
                 return fetch('{{ path('app_api_token_digital') }}', { credentials: 'same-origin' })
                     .then(function(r){ return r.json().catch(function(){ return { error: 'Respuesta inválida del servidor' }; }); })
                     .then(function(data){
-                        if (data && data.token) {
-                            var el = document.getElementById('digital-token');
-                            if (el) { el.textContent = String(data.token); }
-                        } else if (data && data.error) {
-                            if (window.showServiceError) window.showServiceError(data.error);
+                        if (data && Array.isArray(data.tokens)) {
+                            renderTokens(data.tokens);
+                            updateExpiryUI();
+                        }
+                        if (data && data.errors && data.errors.length) {
+                            if (window.showServiceError) {
+                                var message = data.errors.map(function(entry){
+                                    return 'Empresa ' + entry.companyId + ': ' + entry.message;
+                                }).join(' | ');
+                                window.showServiceError(message);
+                            }
+                        } else if (data && data.error && window.showServiceError) {
+                            window.showServiceError(data.error);
                         }
                     })
                     .catch(function(err){ if (window.showServiceError) window.showServiceError('No se pudo actualizar el token.'); });
             }
 
             function scheduleNextRefresh(){
-                if (scheduleTimer) { clearTimeout(scheduleTimer); scheduleTimer = null; }
+                if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
                 var ms = secondsToNextMinute() * 1000 + 50; // small buffer
-                scheduleTimer = setTimeout(function(){
-                    Promise.resolve(refreshDigitalToken()).finally(function(){
-                        scheduleNextRefresh();
-                    });
+                refreshTimer = setTimeout(function(){
+                    Promise.resolve(refreshDigitalTokens())
+                        .finally(scheduleNextRefresh);
                 }, ms);
             }
 
@@ -140,7 +258,12 @@
         })();
     </script>
     <style>
-        .token-box { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin: .5rem 0 1rem; padding:.5rem .75rem; border:1px solid #e3e5e8; border-radius:.5rem; background: linear-gradient(180deg,#f9fbff, #f2f6ff); }
+        .token-list { display:flex; flex-direction:column; gap:1.25rem; margin:.75rem 0; }
+        .token-item { border:1px solid #e3e5e8; border-radius:.65rem; padding:.75rem .85rem; background: linear-gradient(180deg,#f9fbff,#f2f6ff); box-shadow:0 1px 2px rgba(13,110,253,.08); }
+        .token-meta { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:.4rem; font-size:.95rem; color:#0b5ed7; }
+        .token-company { font-weight:700; word-break:break-word; }
+        .token-intent { font-size:.75rem; text-transform:uppercase; letter-spacing:.05em; background:#e7f1ff; border:1px solid #cfe2ff; border-radius:.375rem; padding:.15rem .45rem; color:#0b5ed7; }
+        .token-box { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin:0; padding:.4rem .6rem; border:1px solid #e3e5e8; border-radius:.5rem; background:#fff; }
         .token-main { display:flex; align-items:baseline; gap:.75rem; }
         .token-box code { font-size: 2rem; font-weight: 800; letter-spacing: .3rem; padding: .35rem .6rem; color:#0b5ed7; background: #ffffff; border: 2px solid #cfe2ff; border-radius: .5rem; box-shadow: 0 1px 2px rgba(13,110,253,.08) inset; }
         .expiry { font-size: .9rem; color:#0b5ed7; background: #e7f1ff; border: 1px solid #cfe2ff; padding: .15rem .5rem; border-radius: .375rem; }
@@ -148,6 +271,6 @@
         .icon-btn { display:inline-flex; align-items:center; justify-content:center; border: 1px solid #d0d4da; background: #fff; color:#0b5ed7; border-radius: .45rem; padding:.45rem; cursor:pointer; transition: background .15s ease, transform .05s ease; }
         .icon-btn:hover { background:#eef5ff; }
         .icon-btn:active { transform: scale(0.98); }
-        /* no refresh button now */
+        .copy-feedback { margin-top:.4rem; display:none; }
     </style>
 {% endblock %}

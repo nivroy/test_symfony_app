@@ -10,6 +10,7 @@ interface ServiceInterface {
     public function buildUrl(string $path, array $query = []): string;
     public function createApiKey(string $idToken): array;
     public function getApiKeys(string $idToken): array;
+    public function getActiveUserConnections(string $idToken): array;
     public function fetchDigitalToken(string $idToken, ?string $companyId = null): string;
     public function rotateApiKey(string $idToken, string $oldKeyId): array;
     public function deleteApiKey(string $idToken, string $keyId): array;
@@ -22,7 +23,6 @@ class ServiceAPI implements ServiceInterface
 {
     public function __construct(
         #[Autowire(env: 'BASE_URL_API')] private readonly string $baseUrl,
-        #[Autowire(env: 'API_COMPANY_ID')] private readonly ?string $defaultCompanyId = null,
         private readonly HttpClientInterface $http,
     ) {}
 
@@ -119,9 +119,9 @@ class ServiceAPI implements ServiceInterface
 
     public function fetchDigitalToken(string $idToken, ?string $companyId = null): string
     {
-        $company = $companyId ?: ($this->defaultCompanyId ?? '');
+        $company = $companyId !== null ? trim($companyId) : '';
         if ($company === '') {
-            throw new \RuntimeException('Missing companyId for digital token request. Configure API_COMPANY_ID.');
+            throw new \RuntimeException('Missing companyId for digital token request.');
         }
         if ($idToken === '') {
             throw new \RuntimeException('Missing ID token for authorization.');
@@ -142,6 +142,48 @@ class ServiceAPI implements ServiceInterface
             throw new \RuntimeException('No se encontró un token de 6 dígitos en la respuesta.');
         }
         return $token;
+    }
+
+    public function getActiveUserConnections(string $idToken): array
+    {
+        if ($idToken === '') {
+            throw new \RuntimeException('Missing ID token for authorization.');
+        }
+
+        $query = [];
+        $connections = [];
+
+        do {
+            $url = $this->buildUrl('/api/v1/user/connections/intents', $query);
+            $response = $this->http->request('GET', $url, [
+                'headers' => [
+                    'Accept' => 'application/json',
+                    'Authorization' => 'Bearer ' . $idToken,
+                ],
+                'timeout' => 10,
+            ]);
+
+            $data = $this->decodeJsonOrFail($response, 'No se pudieron obtener las conexiones del usuario.');
+
+            $items = isset($data['data']) && is_array($data['data']) ? $data['data'] : [];
+            foreach ($items as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $normalized = $this->normalizeConnectionIntent($item);
+                if ($normalized['status'] === 'ACTIVE') {
+                    $connections[] = $normalized;
+                }
+            }
+
+            $nextCursor = isset($data['next_cursor']) && is_scalar($data['next_cursor'])
+                ? trim((string) $data['next_cursor'])
+                : '';
+            $query = $nextCursor !== '' ? ['cursor' => $nextCursor] : [];
+        } while (!empty($query));
+
+        return $connections;
     }
 
     public function rotateApiKey(string $idToken, string $oldKeyId): array
@@ -369,6 +411,36 @@ class ServiceAPI implements ServiceInterface
             'expiresAt' => $expiresAt,
             'meta'      => $meta,
             'raw'       => $data,
+        ];
+    }
+
+    private function normalizeConnectionIntent(array $data): array
+    {
+        $id = isset($data['id']) && is_scalar($data['id']) ? (string) $data['id'] : null;
+        $companyId = isset($data['company_id']) && is_scalar($data['company_id']) ? (string) $data['company_id'] : null;
+        $status = isset($data['status']) && is_scalar($data['status']) ? strtoupper((string) $data['status']) : null;
+        $intentType = isset($data['intent_type']) && is_scalar($data['intent_type']) ? (string) $data['intent_type'] : null;
+        $externalUserRef = isset($data['external_user_ref']) && is_scalar($data['external_user_ref'])
+            ? (string) $data['external_user_ref']
+            : null;
+        $scopes = isset($data['scopes']) && is_array($data['scopes']) ? array_values(array_filter($data['scopes'], 'is_string')) : [];
+        $createdAt = isset($data['created_at']) && is_scalar($data['created_at']) ? (string) $data['created_at'] : null;
+        $updatedAt = isset($data['last_updated_at']) && is_scalar($data['last_updated_at']) ? (string) $data['last_updated_at'] : null;
+
+        if ($id === null || $companyId === null || $status === null) {
+            throw new \RuntimeException('Respuesta inválida de conexión: ' . json_encode($data));
+        }
+
+        return [
+            'id' => $id,
+            'companyId' => $companyId,
+            'status' => $status,
+            'intentType' => $intentType,
+            'externalUserRef' => $externalUserRef,
+            'scopes' => $scopes,
+            'createdAt' => $createdAt,
+            'lastUpdatedAt' => $updatedAt,
+            'raw' => $data,
         ];
     }
 
