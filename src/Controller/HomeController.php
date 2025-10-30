@@ -102,8 +102,18 @@ final class HomeController extends AbstractController
             }
 
             try {
-                $this->api->validateTicketCode($ticket, $code);
+                $result = $this->api->validateTicketCode($ticket, $code);
                 $this->addFlash('success', 'Token validado correctamente.');
+
+                // Si el estado del ticket es ACTIVE, cerramos la vista de autenticación
+                $status = strtoupper((string)($result['status'] ?? ''));
+                if ($status === 'ACTIVE') {
+                    return $this->render('views/auth_close.html.twig');
+                }
+                // Also allow close if API responded OK (HTTP 200)
+                if (($result['success'] ?? false) === true) {
+                    return $this->render('views/auth_close.html.twig');
+                }
             } catch (\Throwable $e) {
                 $this->addFlash('error', $e->getMessage() ?: 'No se pudo validar el token.');
                 return $this->redirectToRoute('app_auth_validate', ['ticket' => $ticket]);
